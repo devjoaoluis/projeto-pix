@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { UsuariosRepository } from './usuarios.repository';
 import { CriarUsuarioDto } from './dto/criar-usuario.dto';
+import { AtualizarUsuarioDto } from './dto/atualizar-usuario.dto';
 import { Usuario } from '../../models/Usuario';
 
 @Injectable()
@@ -36,5 +37,19 @@ export class UsuariosService {
   remover(id: number): void {
     this.buscarPorId(id);
     this.usuariosRepository.remover(id);
+  }
+
+  atualizar(id: number, dto: AtualizarUsuarioDto): Usuario {
+    // Verifica se o usuário existe
+    this.buscarPorId(id);
+
+    // Monta objeto com os campos que foram enviados
+    const dadosParaAtualizar: Partial<Usuario> = {};
+    if (dto.nome) dadosParaAtualizar.nome = dto.nome;
+    if (dto.email) dadosParaAtualizar.email = dto.email;
+    if (dto.telefone) dadosParaAtualizar.telefone = dto.telefone;
+
+    // Atualiza no repositório
+    return this.usuariosRepository.atualizar(id, dadosParaAtualizar);
   }
 }

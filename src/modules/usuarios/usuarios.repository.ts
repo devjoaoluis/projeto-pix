@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { db } from '../../models/MemoriaDatabase';
 import { Usuario } from '../../models/Usuario';
 
@@ -23,30 +23,20 @@ export class UsuariosRepository {
   }
 
   remover(id: number): void {
-    let indiceUsuario = -1;
-    for (let i = 0; i < db.usuarios.length; i++) {
-      if (db.usuarios[i].id === id) {
-        indiceUsuario = i;
-        break;
-      }
+    db.contas = db.contas.filter((conta) => conta.usuario.id !== id);
+    db.chavesPix = db.chavesPix.filter((chave) => chave.conta.usuario.id !== id);
+    db.usuarios = db.usuarios.filter((usuario) => usuario.id !== id);
+  }
+
+  atualizar(id: number, dadosAtualizados: Partial<Usuario>): Usuario {
+    const index = db.usuarios.findIndex((u) => u.id === id);
+    if (index === -1) {
+      throw new NotFoundException('Usuário não encontrado.');
     }
-    if (indiceUsuario === -1) {
-      return;
-    }
-    const usuario = db.usuarios[indiceUsuario];
-    for (const conta of usuario.contas) {
-      for (let i = db.chavesPix.length - 1; i >= 0; i--) {
-        if (db.chavesPix[i].conta.id === conta.id) {
-          db.chavesPix.splice(i, 1);
-        }
-      }
-      for (let i = db.contas.length - 1; i >= 0; i--) {
-        if (db.contas[i].id === conta.id) {
-          db.contas.splice(i, 1);
-          break;
-        }
-      }
-    }
-    db.usuarios.splice(indiceUsuario, 1);
+
+    const usuarioExistente = db.usuarios[index];
+    const usuarioAtualizado = { ...usuarioExistente, ...dadosAtualizados };
+    db.usuarios[index] = usuarioAtualizado;
+    return usuarioAtualizado;
   }
 }
