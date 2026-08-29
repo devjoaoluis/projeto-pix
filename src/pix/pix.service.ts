@@ -16,14 +16,15 @@ export class PixService {
     private readonly db: NodePgDatabase<Record<string, never>>,
   ) {}
 
-  async generatePix(planId: string, amount: number) {
+  async generatePix(accountId: string, amount: number, description?: string) {
     const pixCode = `00020101021126580014BR.GOV.BCB.PIX0114+55119999999995204000053039865405${amount.toFixed(2)}5802BR5913AcmeInc6008SAOPAULO62070503***6304F1A2`;
 
     const [transaction] = await this.db
       .insert(pixTransactions)
       .values({
-        planId,
+        accountId,
         amount: amount.toString(),
+        description,
         pixCode,
         status: PaymentStatus.PENDING,
       })

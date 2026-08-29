@@ -9,8 +9,9 @@ import {
 
 export const pixTransactions = pgTable('pix_transactions', {
   id: uuid('id').defaultRandom().primaryKey(),
-  planId: varchar('plan_id', { length: 255 }).notNull(),
+  accountId: varchar('plan_id', { length: 255 }).notNull(),
   amount: numeric('amount').notNull(),
+  description: varchar('description', { length: 255 }),
   status: varchar('status', { length: 50 }).default('PENDING').notNull(),
   pixCode: text('pix_code').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),

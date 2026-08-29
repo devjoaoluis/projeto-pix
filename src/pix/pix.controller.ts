@@ -8,7 +8,11 @@ export class PixController {
 
   @Post('generate')
   async generatePix(@Body() body: CreatePixDto) {
-    return this.pixService.generatePix(body.planId, body.amount);
+    return this.pixService.generatePix(
+      body.accountId,
+      body.amount,
+      body.description,
+    );
   }
 
   @Get(':id/status')
