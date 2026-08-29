@@ -22,31 +22,12 @@ export class UsuariosRepository {
     return db.usuarios;
   }
 
+  
   remover(id: number): void {
-    let indiceUsuario = -1;
-    for (let i = 0; i < db.usuarios.length; i++) {
-      if (db.usuarios[i].id === id) {
-        indiceUsuario = i;
-        break;
-      }
-    }
-    if (indiceUsuario === -1) {
-      return;
-    }
-    const usuario = db.usuarios[indiceUsuario];
-    for (const conta of usuario.contas) {
-      for (let i = db.chavesPix.length - 1; i >= 0; i--) {
-        if (db.chavesPix[i].conta.id === conta.id) {
-          db.chavesPix.splice(i, 1);
-        }
-      }
-      for (let i = db.contas.length - 1; i >= 0; i--) {
-        if (db.contas[i].id === conta.id) {
-          db.contas.splice(i, 1);
-          break;
-        }
-      }
-    }
-    db.usuarios.splice(indiceUsuario, 1);
+    db.contas = db.contas.filter((conta) => conta.usuario.id !== id);
+
+    db.chavesPix = db.chavesPix.filter((chave) => chave.conta.usuario.id !== id);
+    
+    db.usuarios = db.usuarios.filter((usuario) => usuario.id !== id);
   }
 }
