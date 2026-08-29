@@ -1,24 +1,43 @@
-import { Injectable } from '@nestjs/common';
-import { db } from '../../models/MemoriaDatabase';
+import { Injectable, Inject } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
+import { usuarios } from '../../db/schema';
 import { Usuario } from '../../models/Usuario';
 
 @Injectable()
 export class UsuariosRepository {
-  salvar(usuario: Usuario): Usuario {
-    usuario.id = db.getNextId();
-    db.usuarios.push(usuario);
+  constructor(@Inject('DRIZZLE') private readonly db: any) {}
+
+  async salvar(usuario: Usuario) {
+    const [novoRegistro] = await this.db
+      .insert(usuarios)
+      .values({
+        nome: usuario.nome,
+        cpf: usuario.cpf,
+        email: usuario.email,
+        telefone: usuario.telefone,
+      })
+      .returning();
+
+    return novoRegistro;
+  }
+
+  async buscarPorCpf(cpf: string) {
+    const [usuario] = await this.db
+      .select()
+      .from(usuarios)
+      .where(eq(usuarios.cpf, cpf));
     return usuario;
   }
 
-  buscarPorCpf(cpf: string): Usuario | undefined {
-    return db.usuarios.find((usuario) => usuario.cpf === cpf);
+  async buscarPorId(id: string) {
+    const [usuario] = await this.db
+      .select()
+      .from(usuarios)
+      .where(eq(usuarios.id, id));
+    return usuario;
   }
 
-  buscarPorId(id: number): Usuario | undefined {
-    return db.usuarios.find((usuario) => usuario.id === id);
-  }
-
-  listarTodos(): Usuario[] {
-    return db.usuarios;
+  async listarTodos() {
+    return await this.db.select().from(usuarios);
   }
 }

@@ -1,24 +1,23 @@
-import { Controller, Post, Get, Param, Body, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body } from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
 import { CriarUsuarioDto } from './dto/criar-usuario.dto';
-import { Usuario } from '../../models/Usuario';
 
 @Controller('usuarios')
 export class UsuariosController {
   constructor(private readonly usuariosService: UsuariosService) {}
 
   @Post()
-  cadastrar(@Body() dto: CriarUsuarioDto): Usuario {
-    return this.usuariosService.cadastrar(dto);
+  async cadastrar(@Body() dto: CriarUsuarioDto) {
+    return await this.usuariosService.cadastrar(dto);
   }
 
   @Get()
-  listar(): Usuario[] {
-    return this.usuariosService.listar();
+  async listar() {
+    return await this.usuariosService.listar();
   }
 
   @Get(':id')
-  buscarPorId(@Param('id', ParseIntPipe) id: number): Usuario {
-    return this.usuariosService.buscarPorId(id);
+  async buscarPorId(@Param('id') id: string) {
+    return await this.usuariosService.buscarPorId(id);
   }
 }
