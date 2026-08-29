@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsNumber, IsPositive } from 'class-validator';
 
-export class GeneratePixDto {
+export class CreatePixDto {
   @IsString({ message: 'O planId deve ser uma string válida.' })
   @IsNotEmpty({ message: 'O planId é obrigatório.' })
   planId: string;

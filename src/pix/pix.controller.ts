@@ -1,13 +1,13 @@
 import { Controller, Post, Get, Patch, Param, Body } from '@nestjs/common';
 import { PixService } from './pix.service';
-import { GeneratePixDto } from './dto/generate-pix.dto';
+import { CreatePixDto } from './dto/create-pix.dto';
 
 @Controller('pix')
 export class PixController {
   constructor(private readonly pixService: PixService) {}
 
   @Post('generate')
-  async generatePix(@Body() body: GeneratePixDto) {
+  async generatePix(@Body() body: CreatePixDto) {
     return this.pixService.generatePix(body.planId, body.amount);
   }
 
