@@ -1,56 +1,58 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { eq } from 'drizzle-orm';
+import { pixTransactions } from './db/schema';
 
 export enum PaymentStatus {
   PENDING = 'PENDING',
   PAID = 'PAID',
 }
 
-export interface PixTransaction {
-  id: string;
-  planId: string;
-  amount: number;
-  status: PaymentStatus;
-  pixCode: string; // código copia e cola
-  createdAt: Date;
-}
-
 @Injectable()
 export class PixService {
-  private transactions: PixTransaction[] = [];
+  constructor(
+    @Inject('DRIZZLE')
+    private readonly db: NodePgDatabase<Record<string, never>>,
+  ) {}
 
-  generatePix(planId: string, amount: number): PixTransaction {
-    const id = randomUUID();
-
+  async generatePix(planId: string, amount: number) {
     const pixCode = `00020101021126580014BR.GOV.BCB.PIX0114+55119999999995204000053039865405${amount.toFixed(2)}5802BR5913AcmeInc6008SAOPAULO62070503***6304F1A2`;
 
-    const transaction: PixTransaction = {
-      id,
-      planId,
-      amount,
-      status: PaymentStatus.PENDING,
-      pixCode,
-      createdAt: new Date(),
-    };
+    const [transaction] = await this.db
+      .insert(pixTransactions)
+      .values({
+        planId,
+        amount: amount.toString(),
+        pixCode,
+        status: PaymentStatus.PENDING,
+      })
+      .returning();
 
-    this.transactions.push(transaction);
     return transaction;
   }
 
-  getStatus(id: string): PixTransaction {
-    const transaction = this.transactions.find((t) => t.id === id);
+  async getStatus(id: string) {
+    const [transaction] = await this.db
+      .select()
+      .from(pixTransactions)
+      .where(eq(pixTransactions.id, id));
+
     if (!transaction) {
       throw new NotFoundException('Transação não encontrada');
     }
+
     return transaction;
   }
 
-  simulateWebhookEvent(id: string): PixTransaction {
-    const transaction = this.getStatus(id);
+  async simulateWebhookEvent(id: string) {
+    await this.getStatus(id);
+    const [updatedTransaction] = await this.db
+      .update(pixTransactions)
+      .set({ status: PaymentStatus.PAID })
+      .where(eq(pixTransactions.id, id))
+      .returning();
 
-    // Atualiza o status para pago
-    transaction.status = PaymentStatus.PAID;
-
-    return transaction;
+    return updatedTransaction;
   }
 }
