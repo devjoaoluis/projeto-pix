@@ -12,6 +12,8 @@ import { bankAccounts } from '../db/schema';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { BankAccountStatus } from './enums/bank-account-status.enu';
 
+import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
+
 @Injectable()
 export class BankAccountService {
   constructor(
@@ -110,5 +112,34 @@ export class BankAccountService {
       .returning();
 
     return bankAccount;
+  }
+
+  async update(id: string, dto: UpdateBankAccountDto) {
+    await this.findById(id);
+
+    if (Object.keys(dto).length === 0) {
+      return this.findById(id);
+    }
+
+    const [bankAccount] = await this.db
+      .update(bankAccounts)
+      .set({
+        ...dto,
+        updatedAt: new Date(),
+      })
+      .where(eq(bankAccounts.id, id))
+      .returning();
+    
+    return bankAccount;
+  }
+
+  async remove(id: string) {
+    await this.findById(id);
+    
+    await this.db
+      .delete(bankAccounts)
+      .where(eq(bankAccounts.id, id));
+
+  return { message: `Conta bancária ${id} removida com sucesso`};    
   }
 }
