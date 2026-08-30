@@ -1,5 +1,4 @@
 import { Injectable, Inject, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq } from 'drizzle-orm';
 import { pixTransactions } from '../db/schema';
