@@ -9,10 +9,11 @@ import {
 
 export const pixTransactions = pgTable('pix_transactions', {
   id: uuid('id').defaultRandom().primaryKey(),
-  accountId: varchar('plan_id', { length: 255 }).notNull(),
-  amount: numeric('amount').notNull(),
+  accountId: varchar('account_id', { length: 255 }).notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
   description: varchar('description', { length: 255 }),
   status: varchar('status', { length: 50 }).default('PENDING').notNull(),
+  pixKey: varchar('pix_key', { length: 100 }).notNull(),
   pixCode: text('pix_code').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
