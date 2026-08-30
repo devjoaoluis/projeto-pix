@@ -2,10 +2,11 @@ import { Injectable, Inject } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { contaBancaria } from '../db/schema';
 import { ContaBancaria } from '../models/ContaBancaria';
+import { DRIZZLE } from '../db/db.provider';
 
 @Injectable()
 export class ContaBancariaRepository {
-  constructor(@Inject('PG_CONNECTION') private readonly db: any) {}
+  constructor(@Inject(DRIZZLE) private readonly db: any) {}
 
   async salvar(conta: ContaBancaria) {
     const [novaConta] = await this.db
