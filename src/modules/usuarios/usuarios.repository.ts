@@ -7,7 +7,7 @@ import { Usuario } from '../../models/Usuario';
 export class UsuariosRepository {
   constructor(@Inject('DRIZZLE') private readonly db: any) {}
 
-  async salvar(usuario: Usuario) {
+  async salvar(usuario: any) {
     const [novoRegistro] = await this.db
       .insert(usuarios)
       .values({
