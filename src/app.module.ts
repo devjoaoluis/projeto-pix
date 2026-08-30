@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PixModule } from './pix/pix.module';
 import { DbModule } from './db/db.module';
+import { ContasBancariasModule } from '../src/ContaBancaria/ContaBancaria.module';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }), PixModule, DbModule],
