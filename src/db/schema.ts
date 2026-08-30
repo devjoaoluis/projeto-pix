@@ -10,7 +10,9 @@ import {
 
 export const pixTransactions = pgTable('pix_transactions', {
   id: uuid('id').defaultRandom().primaryKey(),
-  accountId: varchar('account_id', { length: 255 }).notNull(),
+  bankAccountId: uuid('bank_account_id')
+    .notNull()
+    .references(() => bankAccounts.id),
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
   description: varchar('description', { length: 255 }),
   status: varchar('status', { length: 50 }).default('PENDING').notNull(),
@@ -22,9 +24,9 @@ export const pixKeys = pgTable(
   'pix_keys',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    accountId: varchar('account_id', {
-      length: 255,
-    }).notNull(),
+    bankAccountId: uuid('bank_account_id')
+      .notNull()
+      .references(() => bankAccounts.id),
     key: varchar('key', {
       length: 255,
     }).notNull(),

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and } from 'drizzle-orm';
-import { pixKeys } from '../db/schema';
+import { pixKeys, bankAccounts } from '../db/schema';
 import { CreatePixKeyDto } from './dto/create-pix-key.dto';
 import { PixKeyType } from './enums/pix-key-type.enum';
 import { randomUUID } from 'crypto';
@@ -18,7 +18,16 @@ export class PixKeyService {
     private readonly db: NodePgDatabase<Record<string, never>>,
   ) {}
 
-  async create(accountId: string, dto: CreatePixKeyDto) {
+  async create(bankAccountId: string, dto: CreatePixKeyDto) {
+    const [bankAccount] = await this.db
+      .select()
+      .from(bankAccounts)
+      .where(eq(bankAccounts.id, bankAccountId));
+
+    if (!bankAccount) {
+      throw new NotFoundException('Conta bancária não encontrada');
+    }
+
     const type = this.getPixKeyType(dto.key);
 
     const normalizedKey = this.normalizeKey(dto.key, type);
@@ -32,7 +41,7 @@ export class PixKeyService {
     const [pixKey] = await this.db
       .insert(pixKeys)
       .values({
-        accountId,
+        bankAccountId,
         key: normalizedKey,
         type,
       })
@@ -87,11 +96,11 @@ export class PixKeyService {
     return PixKeyType.RANDOM;
   }
 
-  async findByAccount(accountId: string) {
+  async findByAccount(bankAccountId: string) {
     return this.db
       .select()
       .from(pixKeys)
-      .where(eq(pixKeys.accountId, accountId));
+      .where(eq(pixKeys.bankAccountId, bankAccountId));
   }
 
   async findByKey(key: string) {
@@ -103,11 +112,11 @@ export class PixKeyService {
     return pixKey;
   }
 
-  async remove(accountId: string, id: string) {
+  async remove(bankAccountId: string, id: string) {
     const [pixKey] = await this.db
       .select()
       .from(pixKeys)
-      .where(and(eq(pixKeys.id, id), eq(pixKeys.accountId, accountId)));
+      .where(and(eq(pixKeys.id, id), eq(pixKeys.bankAccountId, bankAccountId)));
 
     if (!pixKey) {
       throw new NotFoundException('Chave Pix não encontrada');
@@ -120,13 +129,13 @@ export class PixKeyService {
     };
   }
 
-  async generateRandomKey(accountId: string) {
+  async generateRandomKey(bankAccountId: string) {
     const key = randomUUID();
 
     const [pixKey] = await this.db
       .insert(pixKeys)
       .values({
-        accountId,
+        bankAccountId,
         key,
         type: PixKeyType.RANDOM,
       })
