@@ -35,3 +35,30 @@ export const pixKeys = pgTable(
   },
   (table) => [uniqueIndex('pix_key_unique').on(table.key)],
 );
+
+export const bankAccounts = pgTable(
+  'bank_accounts',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    // Futuramente será uma FK para users.id quando acabarem o módulo de Usurios
+    //   userId: uuid('user_id')
+    // .notNull()
+    // .references(() => users.id),
+    // Esse código acima é para mudar quando estiver pronto
+    userId: uuid('user_id').notNull(),
+    balance: numeric('balance', {
+      precision: 15,
+      scale: 2,
+    })
+      .default('0')
+      .notNull(),
+    status: varchar('status', {
+      length: 20,
+    })
+      .default('ACTIVE')
+      .notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex('bank_accounts_user_id_unique').on(table.userId)],
+);
