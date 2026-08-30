@@ -9,7 +9,7 @@ export class PixController {
   @Post('generate')
   async generatePix(@Body() dto: CreatePixDto) {
     return this.pixService.generatePix(
-      dto.accountId,
+      dto.bankAccountId,
       dto.amount,
       dto.description,
     );
