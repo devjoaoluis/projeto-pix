@@ -52,7 +52,7 @@ export const pixKeys = pgTable(
   (table) => [uniqueIndex('pix_key_unique').on(table.key)],
 );
 
-// 4. Tabela de Transações Pix (aponta para bankAccounts.id e pixKeys.id)
+
 export const pixTransactions = pgTable('pix_transactions', {
   id: uuid('id').defaultRandom().primaryKey(),
   bankAccountId: uuid('bank_account_id').references(() => bankAccounts.id),

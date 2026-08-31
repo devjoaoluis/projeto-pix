@@ -1,40 +1,38 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { UsuariosRepository } from './usuarios.repository';
-import { CriarUsuarioDto } from './dto/criar-usuario.dto';
-import { Usuario } from '../../models/Usuario';
+import { UsersRepository } from './usuarios.repository';
+import { CreateUserDto } from './dto/criar-usuario.dto';
 
 @Injectable()
-export class UsuariosService {
-  constructor(private readonly usuariosRepository: UsuariosRepository) {}
+export class UsersService {
+  constructor(private readonly usersRepository: UsersRepository) {}
 
-  async cadastrar(dto: CriarUsuarioDto) {
-    const usuarioExistente = await this.usuariosRepository.buscarPorCpf(dto.cpf);
+  async create(dto: CreateUserDto) {
+    const userExists = await this.usersRepository.findByCpf(dto.cpf);
 
-    if (usuarioExistente) {
+    if (userExists) {
       throw new BadRequestException('Já existe um usuário cadastrado com este CPF.');
     }
 
-    const novoUsuario = new Usuario(
-      dto.nome,
-      dto.cpf,
-      dto.email,
-      dto.telefone,
-    );
-
-    return await this.usuariosRepository.salvar(novoUsuario);
+    // Passa o objeto simples com os atributos em inglês esperados pelo repositório
+    return await this.usersRepository.create({
+      name: dto.name,
+      cpf: dto.cpf,
+      email: dto.email,
+      phone: dto.phone,
+    });
   }
 
-  async buscarPorId(id: string) {
-    const usuario = await this.usuariosRepository.buscarPorId(id);
+  async findById(id: string) {
+    const user = await this.usersRepository.findById(id);
 
-    if (!usuario) {
+    if (!user) {
       throw new NotFoundException('Usuário não encontrado.');
     }
 
-    return usuario;
+    return user;
   }
 
-  async listar() {
-    return await this.usuariosRepository.listarTodos();
+  async findAll() {
+    return await this.usersRepository.findAll();
   }
 }
