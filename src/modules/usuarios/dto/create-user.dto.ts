@@ -1,5 +1,5 @@
 import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
-import { IsCPF } from 'brazilian-class-validator'; 
+import { IsCPF } from 'brazilian-class-validator';
 
 export class CreateUserDto {
   @IsString({ message: 'O nome deve ser uma string.' })

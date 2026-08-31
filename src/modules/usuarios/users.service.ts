@@ -1,6 +1,10 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
-import { UsersRepository } from './usuarios.repository';
-import { CreateUserDto } from './dto/criar-usuario.dto';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
+import { UsersRepository } from './users.repository';
+import { CreateUserDto } from './dto/create-user.dto';
 
 @Injectable()
 export class UsersService {
@@ -10,7 +14,9 @@ export class UsersService {
     const userExists = await this.usersRepository.findByCpf(dto.cpf);
 
     if (userExists) {
-      throw new BadRequestException('Já existe um usuário cadastrado com este CPF.');
+      throw new BadRequestException(
+        'Já existe um usuário cadastrado com este CPF.',
+      );
     }
 
     // Passa o objeto simples com os atributos em inglês esperados pelo repositório
