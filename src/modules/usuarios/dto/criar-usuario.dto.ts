@@ -1,13 +1,13 @@
-import { IsEmail, IsNotEmpty, IsString, Length } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { IsCPF } from 'brazilian-class-validator'; // Ou 'nestjs-cpf-cnpj-validator'
 
-export class CriarUsuarioDto {
+export class CreateUserDto {
   @IsString({ message: 'O nome deve ser uma string.' })
   @IsNotEmpty({ message: 'O nome é obrigatório.' })
-  nome!: string;
+  name!: string;
 
-  @IsString({ message: 'O CPF deve ser uma string.' })
+  @IsCPF({ message: 'O CPF fornecido é inválido.' })
   @IsNotEmpty({ message: 'O CPF é obrigatório.' })
-  @Length(11, 14, { message: 'O CPF deve ter entre 11 e 14 caracteres.' })
   cpf!: string;
 
   @IsEmail({}, { message: 'Forneça um e-mail válido.' })
@@ -16,5 +16,5 @@ export class CriarUsuarioDto {
 
   @IsString({ message: 'O telefone deve ser uma string.' })
   @IsNotEmpty({ message: 'O telefone é obrigatório.' })
-  telefone!: string;
+  phone!: string;
 }
