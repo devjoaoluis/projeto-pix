@@ -8,13 +8,11 @@ export class PixTransactionController {
 
     constructor(private readonly pixTransactionService: PixTransactionService) {}
 
-    // POST /bank-accounts/:id/pix/transfer
-    @Post('transfer')
-    transfer(@Param('id') accountId: string, @Body() dto: TransferPixDto) {
-        return this.pixTransactionService.transfer(accountId, dto);
+    @Post(':senderAccountId/transfer')
+    transfer(@Param('senderAccountId') senderAccountId: string, @Body() dto: TransferPixDto) {
+        return this.pixTransactionService.transfer(senderAccountId, dto);
     }
 
-    // POST /pix/webhook (chamado pelo provedor externo)
     @Post('webhook')
     receiveWebhook(@Body() dto: ReceivePixDto) {
         return this.pixTransactionService.receiveWebhook(dto);
