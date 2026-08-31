@@ -7,9 +7,9 @@ import {
 } from 'class-validator';
 
 export class CreatePixDto {
-  @IsString({ message: 'O accountId deve ser uma string válida.' })
-  @IsNotEmpty({ message: 'O accountId é obrigatório.' })
-  accountId: string;
+  @IsString({ message: 'O bankAccountId deve ser uma string válida.' })
+  @IsNotEmpty({ message: 'O bankAccountId é obrigatório.' })
+  bankAccountId: string;
 
   @IsNumber({}, { message: 'O amount deve ser um número.' })
   @IsPositive({ message: 'O amount deve ser maior que zero.' })

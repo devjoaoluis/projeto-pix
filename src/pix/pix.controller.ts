@@ -7,11 +7,11 @@ export class PixController {
   constructor(private readonly pixService: PixService) {}
 
   @Post('generate')
-  async generatePix(@Body() body: CreatePixDto) {
+  async generatePix(@Body() dto: CreatePixDto) {
     return this.pixService.generatePix(
-      body.accountId,
-      body.amount,
-      body.description,
+      dto.bankAccountId,
+      dto.amount,
+      dto.description,
     );
   }
 
