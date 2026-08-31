@@ -11,12 +11,18 @@ import {
 export const pixTransactions = pgTable('pix_transactions', {
   id: uuid('id').defaultRandom().primaryKey(),
   bankAccountId: uuid('bank_account_id')
-    .notNull()
     .references(() => bankAccounts.id),
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
   description: varchar('description', { length: 255 }),
   status: varchar('status', { length: 50 }).default('PENDING').notNull(),
-  pixCode: text('pix_code').notNull(),
+  pixCode: text('pix_code'),
+  senderAccountId: uuid('sender_account_id')
+    .references(() => bankAccounts.id),
+  receiverAccountId: uuid('receiver_account_id')
+    .references(() => bankAccounts.id),
+  pixKeyId: uuid('pix_key_id').references(() => pixKeys.id),
+  type: varchar('type', { length: 10 }).notNull(), // 'TRANSFER' | 'RECEIVE'
+  idempotencyKey: varchar('idempotency_key', { length: 255 }).unique(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

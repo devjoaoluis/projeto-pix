@@ -6,10 +6,10 @@ import {
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and } from 'drizzle-orm';
-import { pixKeys, bankAccounts } from '../db/schema';
-import { CreatePixKeyDto } from './dto/create-pix-key.dto';
 import { PixKeyType } from './enums/pix-key-type.enum';
 import { randomUUID } from 'crypto';
+import { CreatePixKeyDto } from './dto/create-pix-key.dto';
+import { pixKeys, bankAccounts } from '../../db/schema';
 
 @Injectable()
 export class PixKeyService {

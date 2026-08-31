@@ -39,6 +39,7 @@ export class PixService {
         description,
         pixCode,
         status: PaymentStatus.PENDING,
+        type: 'PIX_CHARGE',
       })
       .returning();
 
