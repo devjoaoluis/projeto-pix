@@ -25,7 +25,7 @@ export class PixKeyController {
     return this.pixKeyService.generateRandomKey(bankAccountId);
   }
 
-  @Delete(':bankAccountId:id')
+  @Delete(':bankAccountId/:id')
   remove(
     @Param('bankAccountId') bankAccountId: string,
     @Param('id') id: string,
