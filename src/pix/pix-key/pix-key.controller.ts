@@ -2,10 +2,9 @@ import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { PixKeyService } from './pix-key.service';
 import { CreatePixKeyDto } from './dto/create-pix-key.dto';
 
-
 @Controller('pix/keys/account')
 export class PixKeyController {
-  constructor(private readonly pixKeyService: PixKeyService) { }
+  constructor(private readonly pixKeyService: PixKeyService) {}
 
   @Post(':bankAccountId')
   create(
