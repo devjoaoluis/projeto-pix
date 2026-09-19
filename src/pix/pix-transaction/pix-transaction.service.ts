@@ -18,6 +18,10 @@ export class PixTransactionService {
     private readonly db: NodePgDatabase<Record<string, never>>,
   ) { }
 
+  async findAll() {
+    return this.db.select().from(pixTransactions);
+  }
+
   async transfer(senderAccountId: string, dto: TransferPixDto) {
     const senderAccount = await this.getSenderAccount(senderAccountId, dto.amount);
     const receiverPixKey = await this.resolvePixKey(dto.pixKey);

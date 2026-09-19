@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { PixTransactionService } from './pix-transaction.service';
 import { TransferPixDto } from './dto/transfer-pix.dto';
 import { ReceivePixDto } from './dto/receive-pix.dto';
@@ -7,6 +7,11 @@ import { ReceivePixDto } from './dto/receive-pix.dto';
 export class PixTransactionController {
 
     constructor(private readonly pixTransactionService: PixTransactionService) {}
+
+    @Get()
+    findAll() {
+        return this.pixTransactionService.findAll();
+    }
 
     @Post(':senderAccountId/transfer')
     transfer(@Param('senderAccountId') senderAccountId: string, @Body() dto: TransferPixDto) {
