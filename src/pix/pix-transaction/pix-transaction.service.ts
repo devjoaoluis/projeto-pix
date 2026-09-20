@@ -10,13 +10,16 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq, sql } from 'drizzle-orm';
 import { TransferPixDto } from "./dto/transfer-pix.dto";
 import { bankAccounts, pixKeys, pixTransactions } from "../../db/schema";
+import { NotificationService } from "../../notification/notification.service";
 
 @Injectable()
 export class PixTransactionService {
   constructor(
     @Inject('DRIZZLE')
     private readonly db: NodePgDatabase<Record<string, never>>,
+    private readonly notificationService: NotificationService,
   ) { }
+
 
   async transfer(senderAccountId: string, dto: TransferPixDto) {
     const senderAccount = await this.getSenderAccount(senderAccountId, dto.amount);
@@ -31,7 +34,7 @@ export class PixTransactionService {
       await this.checkIdempotency(dto.idempotencyKey);
     }
 
-    return await this.db.transaction(async (tx) => {
+    const transaction = await this.db.transaction(async (tx) => {
       await tx.update(bankAccounts)
         .set({ balance: sql`balance - ${dto.amount}` })
         .where(eq(bankAccounts.id, senderAccount.id));
@@ -40,7 +43,7 @@ export class PixTransactionService {
         .set({ balance: sql`balance + ${dto.amount}` })
         .where(eq(bankAccounts.id, receiverAccount.id));
 
-      const [transaction] = await tx.insert(pixTransactions)
+      const [inserted] = await tx.insert(pixTransactions)
         .values({
           senderAccountId: senderAccount.id,
           receiverAccountId: receiverAccount.id,
@@ -53,23 +56,48 @@ export class PixTransactionService {
         })
         .returning();
 
-      return transaction;
+      return inserted;
     });
+
+    // Notifica o remetente que o PIX foi enviado
+    const senderNotification = this.notificationService.notify(
+      senderAccount.id,
+      transaction.id,
+      'TRANSFER',
+      dto.amount,
+      dto.description,
+    );
+
+    // Notifica o destinatário que recebeu um PIX
+    const receiverNotification = this.notificationService.notify(
+      receiverAccount.id,
+      transaction.id,
+      'RECEIVE',
+      dto.amount,
+      dto.description,
+    );
+
+    return {
+      transaction,
+      notifications: {
+        sender: senderNotification,
+        receiver: receiverNotification,
+      },
+    };
   }
 
   async receiveWebhook(dto: ReceivePixDto) {
     const pixKey = await this.resolvePixKey(dto.pixKey);
-    
+
     const existing = await this.findByExternalId(dto.externalTransactionId);
     if (existing) return existing;
 
-
-    return await this.db.transaction(async (tx) => {
+    const transaction = await this.db.transaction(async (tx) => {
       await tx.update(bankAccounts)
         .set({ balance: sql`balance + ${dto.amount}` })
         .where(eq(bankAccounts.id, pixKey.bankAccountId));
 
-      const [transaction] = await tx.insert(pixTransactions)
+      const [inserted] = await tx.insert(pixTransactions)
         .values({
           receiverAccountId: pixKey.bankAccountId,
           pixKeyId: pixKey.id,
@@ -81,8 +109,22 @@ export class PixTransactionService {
         })
         .returning();
 
-      return transaction;
+      return inserted;
     });
+
+    // Notifica a conta que recebeu o PIX via webhook
+    const notification = this.notificationService.notify(
+      pixKey.bankAccountId,
+      transaction.id,
+      'RECEIVE',
+      dto.amount,
+      dto.description,
+    );
+
+    return {
+      transaction,
+      notification,
+    };
   }
 
   private async getSenderAccount(accountId: string, amount: number) {
