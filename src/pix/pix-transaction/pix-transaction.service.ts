@@ -21,6 +21,10 @@ export class PixTransactionService {
     private readonly notificationService: NotificationService,
   ) { }
 
+  async findAll() {
+    return this.db.select().from(pixTransactions);
+  }
+
   async getTransactionsByAccountAndDate(bankAccountId: string, filterDto: FilterPixTransactionsDto) {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {

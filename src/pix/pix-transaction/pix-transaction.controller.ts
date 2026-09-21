@@ -9,6 +9,11 @@ export class PixTransactionController {
 
     constructor(private readonly pixTransactionService: PixTransactionService) {}
 
+    @Get()
+    findAll() {
+        return this.pixTransactionService.findAll();
+    }
+
     @Post(':senderAccountId/transfer')
     transfer(@Param('senderAccountId') senderAccountId: string, @Body() dto: TransferPixDto) {
         return this.pixTransactionService.transfer(senderAccountId, dto);
