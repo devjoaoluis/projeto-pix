@@ -114,6 +114,7 @@ export class BankAccountService {
     return bankAccount;
   }
 
+  //Atualiza somente dados cadastrais
   async update(id: string, dto: UpdateBankAccountDto) {
     await this.findById(id);
 
@@ -129,17 +130,38 @@ export class BankAccountService {
       })
       .where(eq(bankAccounts.id, id))
       .returning();
-    
+
     return bankAccount;
   }
 
   async remove(id: string) {
     await this.findById(id);
-    
-    await this.db
-      .delete(bankAccounts)
-      .where(eq(bankAccounts.id, id));
 
-  return { message: `Conta bancária ${id} removida com sucesso`};    
+    await this.db.delete(bankAccounts).where(eq(bankAccounts.id, id));
+
+    return { message: `Conta bancária ${id} removida com sucesso` };
+  }
+
+  //Atualiza saldo da conta
+  async updateBalance(id: string, amount: number) {
+    const bankAccount = await this.findById(id);
+
+    const currentBalance = Number(bankAccount.balance);
+    const newBalance = currentBalance + amount;
+
+    if (newBalance < 0) {
+      throw new ConflictException('Saldo insuficiente');
+    }
+
+    const [updatedAccount] = await this.db
+      .update(bankAccounts)
+      .set({
+        balance: newBalance.toFixed(2),
+        updatedAt: new Date(),
+      })
+      .where(eq(bankAccounts.id, id))
+      .returning();
+
+    return updatedAccount;
   }
 }
