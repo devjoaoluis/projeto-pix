@@ -167,4 +167,49 @@ describe('PixTransactionService (BDD Scenarios)', () => {
     expect(dbMock.transaction).not.toHaveBeenCalled();
     expect(notificationServiceMock.notify).not.toHaveBeenCalled();
   });
+  it('Cenário 6: Filtrar transações informando um intervalo de datas válido', async () => {
+    const mockTx = [{ id: 'tx-1', createdAt: new Date('2026-01-05T10:00:00Z') }];
+    
+    // Configura o mock do select chain
+    const mockOrderBy = jest.fn().mockResolvedValue(mockTx);
+    const mockWhere = jest.fn().mockReturnValue({ orderBy: mockOrderBy });
+    const mockFrom = jest.fn().mockReturnValue({ where: mockWhere });
+    dbMock.select.mockReturnValue({ from: mockFrom });
+
+    const result = await service.getTransactionsByAccountAndDate('acc-A', {
+      startDate: '2026-01-02T00:00:00Z',
+      endDate: '2026-01-08T23:59:59Z',
+    });
+
+    expect(result).toEqual(mockTx);
+    expect(dbMock.select).toHaveBeenCalled();
+  });
+
+  it('Cenário 7: Filtrar transações apenas pela data de início (startDate)', async () => {
+    const mockTxs = [
+      { id: 'tx-1', createdAt: new Date('2026-01-05T10:00:00Z') },
+      { id: 'tx-2', createdAt: new Date('2026-01-10T10:00:00Z') }
+    ];
+    
+    const mockOrderBy = jest.fn().mockResolvedValue(mockTxs);
+    const mockWhere = jest.fn().mockReturnValue({ orderBy: mockOrderBy });
+    const mockFrom = jest.fn().mockReturnValue({ where: mockWhere });
+    dbMock.select.mockReturnValue({ from: mockFrom });
+
+    const result = await service.getTransactionsByAccountAndDate('acc-A', {
+      startDate: '2026-01-05T00:00:00Z',
+    });
+
+    expect(result).toEqual(mockTxs);
+    expect(dbMock.select).toHaveBeenCalled();
+  });
+
+  it('Cenário 8: Tentar filtrar transações informando endDate anterior ao startDate', async () => {
+    await expect(
+      service.getTransactionsByAccountAndDate('acc-A', {
+        startDate: '2026-01-10T00:00:00Z',
+        endDate: '2026-01-05T23:59:59Z',
+      })
+    ).rejects.toThrow(BadRequestException);
+  });
 });

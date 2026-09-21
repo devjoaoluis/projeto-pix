@@ -7,8 +7,9 @@ import {
 } from "@nestjs/common";
 import { ReceivePixDto } from "./dto/receive-pix.dto";
 import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, or, and, gte, lte, SQL } from 'drizzle-orm';
 import { TransferPixDto } from "./dto/transfer-pix.dto";
+import { FilterPixTransactionsDto } from "./dto/filter-pix-transactions.dto";
 import { bankAccounts, pixKeys, pixTransactions } from "../../db/schema";
 import { NotificationService } from "../../notification/notification.service";
 
@@ -19,6 +20,38 @@ export class PixTransactionService {
     private readonly db: NodePgDatabase<Record<string, never>>,
     private readonly notificationService: NotificationService,
   ) { }
+
+  async getTransactionsByAccountAndDate(bankAccountId: string, filterDto: FilterPixTransactionsDto) {
+    if (filterDto.startDate && filterDto.endDate) {
+      if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
+        throw new BadRequestException('endDate não pode ser menor que startDate');
+      }
+    }
+
+    const conditions: (SQL<unknown> | undefined)[] = [];
+    
+    conditions.push(
+      or(
+        eq(pixTransactions.bankAccountId, bankAccountId),
+        eq(pixTransactions.senderAccountId, bankAccountId),
+        eq(pixTransactions.receiverAccountId, bankAccountId)
+      )
+    );
+
+    if (filterDto.startDate) {
+      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+    }
+
+    if (filterDto.endDate) {
+      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+    }
+
+    return this.db
+      .select()
+      .from(pixTransactions)
+      .where(and(...conditions))
+      .orderBy(pixTransactions.createdAt);
+  }
 
 
   async transfer(senderAccountId: string, dto: TransferPixDto) {
