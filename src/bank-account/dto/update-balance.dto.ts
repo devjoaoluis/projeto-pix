@@ -1,7 +1,6 @@
-import { IsNumber, IsPositive } from 'class-validator';
+import { IsNumber } from 'class-validator';
 
 export class UpdateBalanceDto {
   @IsNumber()
-  @IsPositive()
-  amount: number;
+  amount!: number;
 }

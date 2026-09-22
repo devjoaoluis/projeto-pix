@@ -33,10 +33,12 @@ describe('NotificationService', () => {
 
     // Verifica se ficou armazenado
     const all = service.getAll();
-    expect(all).toContainEqual(expect.objectContaining({
-      transactionId: 'tx-abc',
-      type: 'RECEIVE',
-    }));
+    expect(all).toContainEqual(
+      expect.objectContaining({
+        transactionId: 'tx-abc',
+        type: 'RECEIVE',
+      }),
+    );
   });
 
   it('should notify TRANSFER transaction and store it', () => {
@@ -60,10 +62,12 @@ describe('NotificationService', () => {
 
     const acc1Notifications = service.getByAccountId('acc-1');
     expect(acc1Notifications).toHaveLength(2);
-    expect(acc1Notifications).toEqual(expect.arrayContaining([
-      expect.objectContaining({ transactionId: 'tx-1' }),
-      expect.objectContaining({ transactionId: 'tx-2' }),
-    ]));
+    expect(acc1Notifications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ transactionId: 'tx-1' }),
+        expect.objectContaining({ transactionId: 'tx-2' }),
+      ]),
+    );
 
     const acc2Notifications = service.getByAccountId('acc-2');
     expect(acc2Notifications).toHaveLength(1);
