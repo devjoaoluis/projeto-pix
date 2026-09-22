@@ -8,7 +8,6 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: varchar('name', { length: 255 }).notNull(),
@@ -31,12 +30,13 @@ export const bankAccounts = pgTable(
     status: varchar('status', { length: 20 })
       .default('ACTIVE')
       .notNull(),
+    blockedReason: varchar('blocked_reason', { length: 255 }),
+    blockedAt: timestamp('blocked_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => [uniqueIndex('bank_accounts_user_id_unique').on(table.userId)],
 );
-
 
 export const pixKeys = pgTable(
   'pix_keys',
@@ -51,7 +51,6 @@ export const pixKeys = pgTable(
   },
   (table) => [uniqueIndex('pix_key_unique').on(table.key)],
 );
-
 
 export const pixTransactions = pgTable('pix_transactions', {
   id: uuid('id').defaultRandom().primaryKey(),

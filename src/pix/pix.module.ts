@@ -6,10 +6,17 @@ import { PixKeyService } from './pix-key/pix-key.service';
 import { PixTransactionService } from './pix-transaction/pix-transaction.service';
 import { PixTransactionController } from './pix-transaction/pix-transaction.controller';
 import { NotificationModule } from '../notification/notification.module';
+import { BankAccountModule } from '../bank-account/bank-account.module';
+import { FraudDetectionService } from './fraud/fraud-detection.service';
 
 @Module({
-  imports: [NotificationModule],
+  imports: [NotificationModule, BankAccountModule],
   controllers: [PixController, PixKeyController, PixTransactionController],
-  providers: [PixService, PixKeyService, PixTransactionService],
+  providers: [
+    PixService,
+    PixKeyService,
+    PixTransactionService,
+    FraudDetectionService,
+  ],
 })
-export class PixModule { }
+export class PixModule {}

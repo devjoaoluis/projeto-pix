@@ -2,11 +2,13 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { PixTransactionService } from './pix-transaction.service';
 import { NotificationService } from '../../notification/notification.service';
 import { BadRequestException } from '@nestjs/common';
+import { FraudDetectionService } from '../fraud/fraud-detection.service';
 
 describe('PixTransactionService (BDD Scenarios)', () => {
   let service: PixTransactionService;
   let dbMock: any;
   let notificationServiceMock: any;
+  let fraudDetectionMock: any;
 
   beforeEach(async () => {
     dbMock = {
@@ -20,6 +22,14 @@ describe('PixTransactionService (BDD Scenarios)', () => {
       notify: jest.fn(),
     };
 
+    fraudDetectionMock = {
+      evaluateTransfer: jest.fn().mockResolvedValue({
+        score: 0,
+        triggeredRules: [],
+        blocked: false,
+      }),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         PixTransactionService,
@@ -30,6 +40,10 @@ describe('PixTransactionService (BDD Scenarios)', () => {
         {
           provide: NotificationService,
           useValue: notificationServiceMock,
+        },
+        {
+          provide: FraudDetectionService,
+          useValue: fraudDetectionMock,
         },
       ],
     }).compile();
@@ -47,7 +61,6 @@ describe('PixTransactionService (BDD Scenarios)', () => {
     const receiverAccount = { id: 'acc-B', balance: '50.00', status: 'ACTIVE' };
     const insertedTx = { id: 'tx-123' };
 
-    // Mock sequence: getSenderAccount -> resolvePixKey -> getReceiverAccount
     dbMock.where
       .mockResolvedValueOnce([senderAccount])
       .mockResolvedValueOnce([pixKey])
@@ -85,10 +98,9 @@ describe('PixTransactionService (BDD Scenarios)', () => {
     const pixKey = { id: 'key-1', bankAccountId: 'acc-C', key: 'chave-c' };
     const insertedTx = { id: 'tx-456' };
 
-    // Mock sequence: resolvePixKey -> findByExternalId
     dbMock.where
       .mockResolvedValueOnce([pixKey])
-      .mockResolvedValueOnce([]); // Empty array means no existing transaction
+      .mockResolvedValueOnce([]);
 
     const mockTx = {
       update: jest.fn().mockReturnThis(),
@@ -119,8 +131,7 @@ describe('PixTransactionService (BDD Scenarios)', () => {
   it('Cenário 3: Tentativa de transferência para a própria conta', async () => {
     const senderAccount = { id: 'acc-A', balance: '200.00', status: 'ACTIVE' };
     const pixKey = { id: 'key-1', bankAccountId: 'acc-A', key: 'chave-a' };
-    
-    // getSenderAccount -> resolvePixKey -> getReceiverAccount
+
     dbMock.where
       .mockResolvedValueOnce([senderAccount])
       .mockResolvedValueOnce([pixKey])
@@ -151,10 +162,9 @@ describe('PixTransactionService (BDD Scenarios)', () => {
     const pixKey = { id: 'key-1', bankAccountId: 'acc-C', key: 'chave-c' };
     const existingTx = { id: 'tx-existing' };
 
-    // resolvePixKey -> findByExternalId
     dbMock.where
       .mockResolvedValueOnce([pixKey])
-      .mockResolvedValueOnce([existingTx]); // Returns existing transaction
+      .mockResolvedValueOnce([existingTx]);
 
     const result = await service.receiveWebhook({
       pixKey: 'chave-c',
@@ -162,15 +172,14 @@ describe('PixTransactionService (BDD Scenarios)', () => {
       externalTransactionId: 'ext-123',
     });
 
-    // It should return the existing transaction directly
     expect(result).toEqual(existingTx);
     expect(dbMock.transaction).not.toHaveBeenCalled();
     expect(notificationServiceMock.notify).not.toHaveBeenCalled();
   });
+
   it('Cenário 6: Filtrar transações informando um intervalo de datas válido', async () => {
     const mockTx = [{ id: 'tx-1', createdAt: new Date('2026-01-05T10:00:00Z') }];
-    
-    // Configura o mock do select chain
+
     const mockOrderBy = jest.fn().mockResolvedValue(mockTx);
     const mockWhere = jest.fn().mockReturnValue({ orderBy: mockOrderBy });
     const mockFrom = jest.fn().mockReturnValue({ where: mockWhere });
@@ -190,7 +199,7 @@ describe('PixTransactionService (BDD Scenarios)', () => {
       { id: 'tx-1', createdAt: new Date('2026-01-05T10:00:00Z') },
       { id: 'tx-2', createdAt: new Date('2026-01-10T10:00:00Z') }
     ];
-    
+
     const mockOrderBy = jest.fn().mockResolvedValue(mockTxs);
     const mockWhere = jest.fn().mockReturnValue({ orderBy: mockOrderBy });
     const mockFrom = jest.fn().mockReturnValue({ where: mockWhere });

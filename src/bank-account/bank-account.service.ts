@@ -3,6 +3,7 @@ import {
   Inject,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 
 import { eq } from 'drizzle-orm';
@@ -10,9 +11,13 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { bankAccounts } from '../db/schema';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
-import { BankAccountStatus } from './enums/bank-account-status.enu';
+import {
+  BankAccountStatus,
+  BankAccountBlockReason,
+} from './enums/bank-account-status.enu';
 
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
+import { BlockForFraudDto } from './dto/block-for-fraud.dto';
 
 @Injectable()
 export class BankAccountService {
@@ -91,6 +96,34 @@ export class BankAccountService {
       .update(bankAccounts)
       .set({
         status: BankAccountStatus.BLOCKED,
+        blockedReason: BankAccountBlockReason.MANUAL,
+        blockedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(bankAccounts.id, id))
+      .returning();
+
+    return bankAccount;
+  }
+
+  async blockForFraud(id: string, dto: BlockForFraudDto = {}) {
+    const account = await this.findById(id);
+
+    if (
+      account.status === BankAccountStatus.BLOCKED &&
+      account.blockedReason === BankAccountBlockReason.SUSPECTED_FRAUD
+    ) {
+      throw new ConflictException(
+        'Conta já está bloqueada por suspeita de fraude',
+      );
+    }
+
+    const [bankAccount] = await this.db
+      .update(bankAccounts)
+      .set({
+        status: BankAccountStatus.BLOCKED,
+        blockedReason: BankAccountBlockReason.SUSPECTED_FRAUD,
+        blockedAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(bankAccounts.id, id))
@@ -100,12 +133,23 @@ export class BankAccountService {
   }
 
   async activate(id: string) {
-    await this.findById(id);
+    const account = await this.findById(id);
+
+    if (
+      account.status === BankAccountStatus.BLOCKED &&
+      account.blockedReason === BankAccountBlockReason.SUSPECTED_FRAUD
+    ) {
+      throw new BadRequestException(
+        'Conta bloqueada por suspeita de fraude não pode ser reativada sem revisão',
+      );
+    }
 
     const [bankAccount] = await this.db
       .update(bankAccounts)
       .set({
         status: BankAccountStatus.ACTIVE,
+        blockedReason: null,
+        blockedAt: null,
         updatedAt: new Date(),
       })
       .where(eq(bankAccounts.id, id))
@@ -129,17 +173,15 @@ export class BankAccountService {
       })
       .where(eq(bankAccounts.id, id))
       .returning();
-    
+
     return bankAccount;
   }
 
   async remove(id: string) {
     await this.findById(id);
-    
-    await this.db
-      .delete(bankAccounts)
-      .where(eq(bankAccounts.id, id));
 
-  return { message: `Conta bancária ${id} removida com sucesso`};    
+    await this.db.delete(bankAccounts).where(eq(bankAccounts.id, id));
+
+    return { message: `Conta bancária ${id} removida com sucesso` };
   }
 }
