@@ -19,7 +19,7 @@ export class PixTransactionService {
     @Inject('DRIZZLE')
     private readonly db: NodePgDatabase<Record<string, never>>,
     private readonly notificationService: NotificationService,
-  ) { }
+  )
 
   async findAll() {
     return this.db.select().from(pixTransactions);
@@ -121,6 +121,74 @@ export class PixTransactionService {
         receiver: receiverNotification,
       },
     };
+  }  
+
+    async cancel(transactionId: string) {
+
+      const [transaction] = await this.db
+        .select()
+        .from(picTransactions)
+        .where(eq(pixTransactions.id, transcationId));
+
+      if (!transaction) {
+        throw new NotFoundException('Transação não encontrada');
+      }
+
+      if (transaction.status !== 'CANCELED') {
+        throw new BadRequestException('Esta transação já está cancelada');
+      }
+
+      const result = await this.db.transaction(async (tx) => {
+
+        const [canceledTransaction] = await tx
+          .update(pixTransactions)
+          .set({ status: 'CANCELED' })
+          .where(eq(pixTransactions.id, transactionId))
+          .returning();
+
+      if (transaction.status === 'COMPLETED') {
+        
+        if (transaction.senderAccountId) {
+          await tx.update(bankAccounts)
+            .set({ balance: sql`balance + ${transaction.amount}` })
+            .where(eq(bankAccounts.id, transaction.senderAccountId));
+        }
+      
+
+        if (transaction.receiverAccountId) {
+          await tx.update(bankAccounts)
+            .set({ balance: sql`balance - ${transaction.amount}` })
+            .where(eq(bankAccounts.id, transaction.receiverAccountId));
+        }
+      }
+
+      return canceledTransaction;
+    });
+
+    if (transaction.senderAccountId) {
+      this.notificationService.notify(
+        transaction.senderAccountId,
+        transaction.id,
+        'CANCELED',
+        transaction.amount,
+        'A sua transação foi cancelada',
+      );
+    }
+
+    if (transaction.receiverAccountId) {
+      this.notificationService.notify(
+        transaction.receiverAccountId,
+        transaction.id,
+        'CANCELED',
+        transaction.amount,
+        'Transação recebida foi cancelada',
+      );
+    }
+
+    return {
+      message: 'Transação cancelada com sucesso',
+      transaction: result,
+    };
   }
 
   async receiveWebhook(dto: ReceivePixDto) {
@@ -161,7 +229,7 @@ export class PixTransactionService {
     return {
       transaction,
       notification,
-    };
+    }
   }
 
   private async getSenderAccount(accountId: string, amount: number) {
