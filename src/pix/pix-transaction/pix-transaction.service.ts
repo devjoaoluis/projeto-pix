@@ -4,16 +4,20 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
-} from "@nestjs/common";
-import { ReceivePixDto } from "./dto/receive-pix.dto";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { eq, sql, or, and, gte, lte, SQL } from 'drizzle-orm';
-import { TransferPixDto } from "./dto/transfer-pix.dto";
-import { FilterPixTransactionsDto } from "./dto/filter-pix-transactions.dto";
-import type { FraudEvaluationResult } from "../fraud/fraud-detection.service";
-import { bankAccounts, pixKeys, pixTransactions } from "../../db/schema";
-import { NotificationService } from "../../notification/notification.service";
-import { FraudDetectionService } from "../fraud/fraud-detection.service";
+} from '@nestjs/common';
+import { ReceivePixDto } from './dto/receive-pix.dto';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { eq, sql, or, and, gte, lte, SQL, desc } from 'drizzle-orm';
+import { TransferPixDto } from './dto/transfer-pix.dto';
+import { FilterPixTransactionsDto } from './dto/filter-pix-transactions.dto';
+import { bankAccounts, pixKeys, pixTransactions } from '../../db/schema';
+import { NotificationService } from '../../notification/notification.service';
+import { FraudDetectionService } from '../fraud/fraud-detection.service';
+import {
+  HistoryResponse,
+  HistoryTransaction,
+  TransactionDirection,
+} from './dto/history-response.dto';
 
 @Injectable()
 export class PixTransactionService {
@@ -61,6 +65,115 @@ export class PixTransactionService {
       .from(pixTransactions)
       .where(and(...conditions))
       .orderBy(pixTransactions.createdAt);
+  }
+
+  /**
+   * Histórico de transações de uma conta.
+   * Retorna todas as operações PIX que passaram pela conta (enviadas,
+   * recebidas e cobranças), com o `direction` calculado em relação à
+   * conta que está consultando.
+   */
+  async getHistory(
+    bankAccountId: string,
+    filterDto: FilterPixTransactionsDto,
+  ): Promise<HistoryResponse> {
+    if (filterDto.startDate && filterDto.endDate) {
+      if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
+        throw new BadRequestException('endDate não pode ser menor que startDate');
+      }
+    }
+
+    const [account] = await this.db
+      .select()
+      .from(bankAccounts)
+      .where(eq(bankAccounts.id, bankAccountId));
+
+    if (!account) {
+      throw new NotFoundException('Conta bancária não encontrada');
+    }
+
+    const conditions: (SQL<unknown> | undefined)[] = [];
+
+    conditions.push(
+      or(
+        eq(pixTransactions.bankAccountId, bankAccountId),
+        eq(pixTransactions.senderAccountId, bankAccountId),
+        eq(pixTransactions.receiverAccountId, bankAccountId),
+      ),
+    );
+
+    if (filterDto.startDate) {
+      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+    }
+
+    if (filterDto.endDate) {
+      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+    }
+
+    const rows = await this.db
+      .select()
+      .from(pixTransactions)
+      .where(and(...conditions))
+      .orderBy(desc(pixTransactions.createdAt));
+
+    const transactions: HistoryTransaction[] = rows.map((tx) => {
+      const direction = this.resolveDirection(tx, bankAccountId);
+      const counterpartAccountId = this.resolveCounterpart(tx, bankAccountId);
+
+      return {
+        id: tx.id,
+        type: tx.type,
+        status: tx.status,
+        amount: tx.amount,
+        description: tx.description ?? null,
+        direction,
+        counterpartAccountId,
+        senderAccountId: tx.senderAccountId ?? null,
+        receiverAccountId: tx.receiverAccountId ?? null,
+        bankAccountId: tx.bankAccountId ?? null,
+        createdAt: tx.createdAt,
+      };
+    });
+
+    return {
+      bankAccountId,
+      currentBalance: account.balance,
+      count: transactions.length,
+      transactions,
+    };
+  }
+
+  private resolveDirection(
+    tx: {
+      senderAccountId?: string | null;
+      receiverAccountId?: string | null;
+      bankAccountId?: string | null;
+      type: string;
+    },
+    queriedAccountId: string,
+  ): TransactionDirection {
+    if (tx.senderAccountId === queriedAccountId) return 'SENT';
+    if (tx.receiverAccountId === queriedAccountId) return 'RECEIVED';
+    if (tx.bankAccountId === queriedAccountId && tx.type === 'PIX_CHARGE') {
+      return 'CHARGE';
+    }
+    return 'UNKNOWN';
+  }
+
+  private resolveCounterpart(
+    tx: {
+      senderAccountId?: string | null;
+      receiverAccountId?: string | null;
+    },
+    queriedAccountId: string,
+  ): string | null {
+    if (tx.senderAccountId === queriedAccountId) {
+      return tx.receiverAccountId ?? null;
+    }
+    if (tx.receiverAccountId === queriedAccountId) {
+      return tx.senderAccountId ?? null;
+    }
+    return null;
   }
 
   async transfer(senderAccountId: string, dto: TransferPixDto) {
@@ -120,12 +233,14 @@ export class PixTransactionService {
       dto.description,
     );
 
-    let fraudEvaluation: FraudEvaluationResult | null = null;
-      try {
-        fraudEvaluation = await this.fraudDetection.evaluateTransfer(transaction);
-      } catch {
-        // silencioso
-      }
+    let fraudEvaluation: Awaited<
+      ReturnType<FraudDetectionService['evaluateTransfer']>
+    > | null = null;
+    try {
+      fraudEvaluation = await this.fraudDetection.evaluateTransfer(transaction);
+    } catch {
+      // silencioso — o FraudDetectionService já loga internamente
+    }
 
     return {
       transaction,

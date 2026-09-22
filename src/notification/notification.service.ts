@@ -15,8 +15,6 @@ export interface TransactionNotification {
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
-  // Armazena em memória para testes via Postman
-  // Em produção, substitua por uma tabela no banco de dados
   private readonly notifications: TransactionNotification[] = [];
 
   notify(
@@ -26,10 +24,12 @@ export class NotificationService {
     amount: number,
     description?: string,
   ): TransactionNotification {
+    const valorFormatado = amount.toFixed(2).replace('.', ',');
+
     const message =
       type === 'RECEIVE'
-        ? `Você recebeu um PIX de R$ ${amount.toFixed(2)}`
-        : `PIX de R$ ${amount.toFixed(2)} enviado com sucesso`;
+        ? `Você recebeu um PIX de R$ ${valorFormatado}`
+        : `PIX de R$ ${valorFormatado} enviado com sucesso`;
 
     const notification: TransactionNotification = {
       id: crypto.randomUUID(),
@@ -42,14 +42,9 @@ export class NotificationService {
       notifiedAt: new Date().toISOString(),
     };
 
-    // Salva na lista em memória
     this.notifications.push(notification);
 
-    // Log visível no terminal do servidor
     this.logger.log(`[NOTIFICAÇÃO] ${message} — conta: ${accountId}`);
-
-    // Aqui no futuro você pode chamar: e-mail, push, WebSocket, etc.
-    // Ex: await this.mailerService.sendMail({ to: email, subject: message })
 
     return notification;
   }
