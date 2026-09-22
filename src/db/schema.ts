@@ -3,6 +3,7 @@ import {
   uuid,
   varchar,
   numeric,
+  integer,
   timestamp,
   text,
   uniqueIndex,
@@ -60,9 +61,42 @@ export const pixTransactions = pgTable('pix_transactions', {
   status: varchar('status', { length: 50 }).default('PENDING').notNull(),
   pixCode: text('pix_code'),
   senderAccountId: uuid('sender_account_id').references(() => bankAccounts.id),
-  receiverAccountId: uuid('receiver_account_id').references(() => bankAccounts.id),
+  receiverAccountId: uuid('receiver_account_id').references(
+    () => bankAccounts.id,
+  ),
   pixKeyId: uuid('pix_key_id').references(() => pixKeys.id),
   type: varchar('type', { length: 10 }).notNull(),
   idempotencyKey: varchar('idempotency_key', { length: 255 }).unique(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const reports = pgTable('reports', {
+  id: uuid('id').defaultRandom().primaryKey(),
+
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+
+  type: varchar('type', { length: 20 }).notNull(),
+
+  startDate: timestamp('start_date'),
+  endDate: timestamp('end_date'),
+
+  totalTransactions: integer('total_transactions').default(0).notNull(),
+
+  totalSent: numeric('total_sent', {
+    precision: 15,
+    scale: 2,
+  })
+    .default('0')
+    .notNull(),
+
+  totalReceived: numeric('total_received', {
+    precision: 15,
+    scale: 2,
+  })
+    .default('0')
+    .notNull(),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
