@@ -7,9 +7,18 @@ import { PixModule } from './pix/pix.module';
 import { DbModule } from './db/db.module';
 import { BankAccountModule } from './bank-account/bank-account.module';
 import { NotificationModule } from './notification/notification.module';
+import { ReportsModule } from './pix/reports/reports.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), PixModule, DbModule, BankAccountModule, UsersModule, NotificationModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PixModule,
+    DbModule,
+    BankAccountModule,
+    UsersModule,
+    NotificationModule,
+    ReportsModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
