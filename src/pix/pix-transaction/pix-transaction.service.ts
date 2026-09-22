@@ -10,8 +10,10 @@ import { NodePgDatabase } from "drizzle-orm/node-postgres";
 import { eq, sql, or, and, gte, lte, SQL } from 'drizzle-orm';
 import { TransferPixDto } from "./dto/transfer-pix.dto";
 import { FilterPixTransactionsDto } from "./dto/filter-pix-transactions.dto";
+import type { FraudEvaluationResult } from "../fraud/fraud-detection.service";
 import { bankAccounts, pixKeys, pixTransactions } from "../../db/schema";
 import { NotificationService } from "../../notification/notification.service";
+import { FraudDetectionService } from "../fraud/fraud-detection.service";
 
 @Injectable()
 export class PixTransactionService {
@@ -19,13 +21,17 @@ export class PixTransactionService {
     @Inject('DRIZZLE')
     private readonly db: NodePgDatabase<Record<string, never>>,
     private readonly notificationService: NotificationService,
-  )
+    private readonly fraudDetection: FraudDetectionService,
+  ) {}
 
   async findAll() {
     return this.db.select().from(pixTransactions);
   }
 
-  async getTransactionsByAccountAndDate(bankAccountId: string, filterDto: FilterPixTransactionsDto) {
+  async getTransactionsByAccountAndDate(
+    bankAccountId: string,
+    filterDto: FilterPixTransactionsDto,
+  ) {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
         throw new BadRequestException('endDate não pode ser menor que startDate');
@@ -33,13 +39,13 @@ export class PixTransactionService {
     }
 
     const conditions: (SQL<unknown> | undefined)[] = [];
-    
+
     conditions.push(
       or(
         eq(pixTransactions.bankAccountId, bankAccountId),
         eq(pixTransactions.senderAccountId, bankAccountId),
-        eq(pixTransactions.receiverAccountId, bankAccountId)
-      )
+        eq(pixTransactions.receiverAccountId, bankAccountId),
+      ),
     );
 
     if (filterDto.startDate) {
@@ -57,7 +63,6 @@ export class PixTransactionService {
       .orderBy(pixTransactions.createdAt);
   }
 
-
   async transfer(senderAccountId: string, dto: TransferPixDto) {
     const senderAccount = await this.getSenderAccount(senderAccountId, dto.amount);
     const receiverPixKey = await this.resolvePixKey(dto.pixKey);
@@ -72,15 +77,18 @@ export class PixTransactionService {
     }
 
     const transaction = await this.db.transaction(async (tx) => {
-      await tx.update(bankAccounts)
+      await tx
+        .update(bankAccounts)
         .set({ balance: sql`balance - ${dto.amount}` })
         .where(eq(bankAccounts.id, senderAccount.id));
 
-      await tx.update(bankAccounts)
+      await tx
+        .update(bankAccounts)
         .set({ balance: sql`balance + ${dto.amount}` })
         .where(eq(bankAccounts.id, receiverAccount.id));
 
-      const [inserted] = await tx.insert(pixTransactions)
+      const [inserted] = await tx
+        .insert(pixTransactions)
         .values({
           senderAccountId: senderAccount.id,
           receiverAccountId: receiverAccount.id,
@@ -96,7 +104,6 @@ export class PixTransactionService {
       return inserted;
     });
 
-    // Notifica o remetente que o PIX foi enviado
     const senderNotification = this.notificationService.notify(
       senderAccount.id,
       transaction.id,
@@ -105,7 +112,6 @@ export class PixTransactionService {
       dto.description,
     );
 
-    // Notifica o destinatário que recebeu um PIX
     const receiverNotification = this.notificationService.notify(
       receiverAccount.id,
       transaction.id,
@@ -114,49 +120,55 @@ export class PixTransactionService {
       dto.description,
     );
 
+    let fraudEvaluation: FraudEvaluationResult | null = null;
+      try {
+        fraudEvaluation = await this.fraudDetection.evaluateTransfer(transaction);
+      } catch {
+        // silencioso
+      }
+
     return {
       transaction,
       notifications: {
         sender: senderNotification,
         receiver: receiverNotification,
       },
+      fraudEvaluation,
     };
-  }  
+  }
 
-    async cancel(transactionId: string) {
+  async cancel(transactionId: string) {
+    const [transaction] = await this.db
+      .select()
+      .from(pixTransactions)
+      .where(eq(pixTransactions.id, transactionId));
 
-      const [transaction] = await this.db
-        .select()
-        .from(picTransactions)
-        .where(eq(pixTransactions.id, transcationId));
+    if (!transaction) {
+      throw new NotFoundException('Transação não encontrada');
+    }
 
-      if (!transaction) {
-        throw new NotFoundException('Transação não encontrada');
-      }
+    if (transaction.status === 'CANCELED') {
+      throw new BadRequestException('Esta transação já está cancelada');
+    }
 
-      if (transaction.status !== 'CANCELED') {
-        throw new BadRequestException('Esta transação já está cancelada');
-      }
-
-      const result = await this.db.transaction(async (tx) => {
-
-        const [canceledTransaction] = await tx
-          .update(pixTransactions)
-          .set({ status: 'CANCELED' })
-          .where(eq(pixTransactions.id, transactionId))
-          .returning();
+    const result = await this.db.transaction(async (tx) => {
+      const [canceledTransaction] = await tx
+        .update(pixTransactions)
+        .set({ status: 'CANCELED' })
+        .where(eq(pixTransactions.id, transactionId))
+        .returning();
 
       if (transaction.status === 'COMPLETED') {
-        
         if (transaction.senderAccountId) {
-          await tx.update(bankAccounts)
+          await tx
+            .update(bankAccounts)
             .set({ balance: sql`balance + ${transaction.amount}` })
             .where(eq(bankAccounts.id, transaction.senderAccountId));
         }
-      
 
         if (transaction.receiverAccountId) {
-          await tx.update(bankAccounts)
+          await tx
+            .update(bankAccounts)
             .set({ balance: sql`balance - ${transaction.amount}` })
             .where(eq(bankAccounts.id, transaction.receiverAccountId));
         }
@@ -169,8 +181,8 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.senderAccountId,
         transaction.id,
-        'CANCELED',
-        transaction.amount,
+        'CANCELED' as any,
+        Number(transaction.amount),
         'A sua transação foi cancelada',
       );
     }
@@ -179,8 +191,8 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.receiverAccountId,
         transaction.id,
-        'CANCELED',
-        transaction.amount,
+        'CANCELED' as any,
+        Number(transaction.amount),
         'Transação recebida foi cancelada',
       );
     }
@@ -198,11 +210,13 @@ export class PixTransactionService {
     if (existing) return existing;
 
     const transaction = await this.db.transaction(async (tx) => {
-      await tx.update(bankAccounts)
+      await tx
+        .update(bankAccounts)
         .set({ balance: sql`balance + ${dto.amount}` })
         .where(eq(bankAccounts.id, pixKey.bankAccountId));
 
-      const [inserted] = await tx.insert(pixTransactions)
+      const [inserted] = await tx
+        .insert(pixTransactions)
         .values({
           receiverAccountId: pixKey.bankAccountId,
           pixKeyId: pixKey.id,
@@ -217,7 +231,6 @@ export class PixTransactionService {
       return inserted;
     });
 
-    // Notifica a conta que recebeu o PIX via webhook
     const notification = this.notificationService.notify(
       pixKey.bankAccountId,
       transaction.id,
@@ -229,7 +242,7 @@ export class PixTransactionService {
     return {
       transaction,
       notification,
-    }
+    };
   }
 
   private async getSenderAccount(accountId: string, amount: number) {
