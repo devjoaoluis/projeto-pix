@@ -28,7 +28,11 @@ export const bankAccounts = pgTable(
     balance: numeric('balance', { precision: 15, scale: 2 })
       .default('0')
       .notNull(),
-    status: varchar('status', { length: 20 }).default('ACTIVE').notNull(),
+    status: varchar('status', { length: 20 })
+      .default('ACTIVE')
+      .notNull(),
+    blockedReason: varchar('blocked_reason', { length: 255 }),
+    blockedAt: timestamp('blocked_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
