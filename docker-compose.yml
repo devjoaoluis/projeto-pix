@@ -14,5 +14,19 @@ services:
     volumes:
       - banco_pix_data:/var/lib/postgresql/data
 
+  seed:
+    image: node:20-alpine
+    container_name: banco_pix_seed
+    depends_on:
+      postgres:
+        condition: service_started
+    volumes:
+      - .:/app
+      - /app/node_modules
+    working_dir: /app
+    command: sh -c "npm install && npm run db:push && npm run seed"
+    environment:
+      - DB_URL=postgresql://root:rootpassword@postgres:5432/banco_pix
+
 volumes:
   banco_pix_data:
