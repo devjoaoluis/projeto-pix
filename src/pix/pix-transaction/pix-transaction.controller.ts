@@ -1,4 +1,4 @@
-import { Body, Controller, Param, Post, Get, Query } from '@nestjs/common';
+import { Body, Controller, Param, Post, Get, Query, Patch } from '@nestjs/common';
 import { PixTransactionService } from './pix-transaction.service';
 import { TransferPixDto } from './dto/transfer-pix.dto';
 import { ReceivePixDto } from './dto/receive-pix.dto';
@@ -30,6 +30,11 @@ export class PixTransactionController {
     @Post('webhook')
     receiveWebhook(@Body() dto: ReceivePixDto) {
         return this.pixTransactionService.receiveWebhook(dto);
+    }
+
+    @Patch(':id/cancel')
+    cancel(@Param('id') id: string) {
+        return this.pixTransactionService.cancel(id);
     }
 
 }
