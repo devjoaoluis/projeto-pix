@@ -1,25 +1,36 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+
 import { ReportsService } from './reports.service';
 import { ReportFilterDto } from './dto/report-filter.dto';
 
 @Controller('pix/reports')
 export class ReportsController {
-  constructor(private readonly pixReportService: ReportsService) {}
+  constructor(private readonly reportsService: ReportsService) {}
 
-  @Get('user/:userId')
-  async getTransactionsByUser(@Param('userId') userId: string) {
-    return this.pixReportService.getTransactionsByUser(userId);
+  @Post('user/:userId')
+  async createUserReport(@Param('userId') userId: string) {
+    return this.reportsService.createUserReport(userId);
   }
 
-  @Get('user/:userId/period')
-  async getTransactionsByPeriod(
+  @Post('user/:userId/period')
+  async createPeriodReport(
     @Param('userId') userId: string,
-    @Query() dto: ReportFilterDto,
+    @Body() dto: ReportFilterDto,
   ) {
-    return this.pixReportService.getTransactionsByPeriod(
+    return this.reportsService.createPeriodReport(
       userId,
       dto.startDate,
       dto.endDate,
     );
+  }
+
+  @Get('user/:userId')
+  async getReportsByUser(@Param('userId') userId: string) {
+    return this.reportsService.getReportsByUser(userId);
+  }
+
+  @Get(':reportId')
+  async getReport(@Param('reportId') reportId: string) {
+    return this.reportsService.getReport(reportId);
   }
 }

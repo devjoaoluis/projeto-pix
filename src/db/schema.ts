@@ -73,9 +73,10 @@ export const reports = pgTable('reports', {
     .notNull()
     .references(() => users.id),
 
-  startDate: timestamp('start_date').notNull(),
+  type: varchar('type', { length: 20 }).notNull(),
 
-  endDate: timestamp('end_date').notNull(),
+  startDate: timestamp('start_date'),
+  endDate: timestamp('end_date'),
 
   totalTransactions: integer('total_transactions').default(0).notNull(),
 

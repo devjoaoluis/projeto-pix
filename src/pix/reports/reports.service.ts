@@ -7,7 +7,7 @@ import {
 
 import { and, or, eq, gte, lte, asc } from 'drizzle-orm';
 
-import { users, bankAccounts, pixTransactions } from '../../db/schema';
+import { users, bankAccounts, pixTransactions, reports } from '../../db/schema';
 
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
@@ -20,86 +20,43 @@ export class ReportsService {
     private readonly drizzle: NodePgDatabase,
   ) {}
 
-  async getTransactionsByUser(userId: string) {
-    const account = await this.drizzle
-      .select({
-        id: bankAccounts.id,
-        balance: bankAccounts.balance,
-        status: bankAccounts.status,
-      })
-      .from(bankAccounts)
-      .where(eq(bankAccounts.userId, userId))
-      .limit(1);
-
-    if (account.length === 0) {
-      throw new NotFoundException('Conta bancária do usuário não encontrada');
-    }
-
-    const user = await this.drizzle
-      .select({
-        id: users.id,
-        name: users.name,
-        cpf: users.cpf,
-        email: users.email,
-        phone: users.phone,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (user.length === 0) {
-      throw new NotFoundException('Usuário não encontrado');
-    }
-
-    const accountId = account[0].id;
+  // POST - Criar relatório do usuário
+  async createUserReport(userId: string) {
+    const account = await this.getUserAccount(userId);
 
     const transactions = await this.drizzle
-      .select({
-        id: pixTransactions.id,
-        amount: pixTransactions.amount,
-        description: pixTransactions.description,
-        status: pixTransactions.status,
-        type: pixTransactions.type,
-        pixCode: pixTransactions.pixCode,
-        senderAccountId: pixTransactions.senderAccountId,
-        receiverAccountId: pixTransactions.receiverAccountId,
-        pixKeyId: pixTransactions.pixKeyId,
-        createdAt: pixTransactions.createdAt,
-      })
+      .select()
       .from(pixTransactions)
       .where(
         or(
-          eq(pixTransactions.senderAccountId, accountId),
-          eq(pixTransactions.receiverAccountId, accountId),
+          eq(pixTransactions.senderAccountId, account.id),
+          eq(pixTransactions.receiverAccountId, account.id),
         ),
-      );
+      )
+      .orderBy(asc(pixTransactions.createdAt));
+
+    const totals = this.calculateTotals(transactions, account.id);
+
+    const [report] = await this.drizzle
+      .insert(reports)
+      .values({
+        userId,
+        type: 'USER',
+        totalTransactions: transactions.length,
+        totalSent: totals.totalSent.toFixed(2),
+        totalReceived: totals.totalReceived.toFixed(2),
+      })
+      .returning();
 
     return {
-      user: user[0],
-      account: account[0],
-      summary: {
-        totalTransactions: transactions.length,
-        totalSent: transactions
-          .filter((transaction) => transaction.senderAccountId === accountId)
-          .reduce((total, transaction) => total + Number(transaction.amount), 0)
-          .toFixed(2),
-
-        totalReceived: transactions
-          .filter((transaction) => transaction.receiverAccountId === accountId)
-          .reduce((total, transaction) => total + Number(transaction.amount), 0)
-          .toFixed(2),
-      },
+      report,
       transactions,
     };
   }
 
-  async getTransactionsByPeriod(
-    userId: string,
-    startDate: string,
-    endDate: string,
-  ) {
+  // POST - Criar relatório por período
+  async createPeriodReport(userId: string, startDate: string, endDate: string) {
     const start = new Date(`${startDate}T00:00:00`);
-
     const end = new Date(`${endDate}T23:59:59.999`);
 
     if (start > end) {
@@ -108,90 +65,121 @@ export class ReportsService {
       );
     }
 
-    const user = await this.drizzle
-      .select({
-        id: users.id,
-        name: users.name,
-        cpf: users.cpf,
-        email: users.email,
-        phone: users.phone,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (user.length === 0) {
-      throw new NotFoundException('Usuário não encontrado');
-    }
-
-    const account = await this.drizzle
-      .select({
-        id: bankAccounts.id,
-        balance: bankAccounts.balance,
-        status: bankAccounts.status,
-      })
-      .from(bankAccounts)
-      .where(eq(bankAccounts.userId, userId))
-      .limit(1);
-
-    if (account.length === 0) {
-      throw new NotFoundException('Conta bancária do usuário não encontrada');
-    }
-
-    const accountId = account[0].id;
+    const account = await this.getUserAccount(userId);
 
     const transactions = await this.drizzle
-      .select({
-        id: pixTransactions.id,
-        amount: pixTransactions.amount,
-        description: pixTransactions.description,
-        status: pixTransactions.status,
-        type: pixTransactions.type,
-        pixCode: pixTransactions.pixCode,
-        senderAccountId: pixTransactions.senderAccountId,
-        receiverAccountId: pixTransactions.receiverAccountId,
-        pixKeyId: pixTransactions.pixKeyId,
-        createdAt: pixTransactions.createdAt,
-      })
+      .select()
       .from(pixTransactions)
       .where(
         and(
           or(
-            eq(pixTransactions.senderAccountId, accountId),
-            eq(pixTransactions.receiverAccountId, accountId),
+            eq(pixTransactions.senderAccountId, account.id),
+            eq(pixTransactions.receiverAccountId, account.id),
           ),
-
           gte(pixTransactions.createdAt, start),
-
           lte(pixTransactions.createdAt, end),
         ),
       )
       .orderBy(asc(pixTransactions.createdAt));
 
-    return {
-      user: user[0],
-      account: account[0],
+    const totals = this.calculateTotals(transactions, account.id);
 
-      period: {
-        startDate,
-        endDate,
-      },
-
-      summary: {
+    const [report] = await this.drizzle
+      .insert(reports)
+      .values({
+        userId,
+        type: 'PERIOD',
+        startDate: start,
+        endDate: end,
         totalTransactions: transactions.length,
+        totalSent: totals.totalSent.toFixed(2),
+        totalReceived: totals.totalReceived.toFixed(2),
+      })
+      .returning();
 
-        totalSent: transactions
-          .filter((transaction) => transaction.senderAccountId === accountId)
-          .reduce((total, transaction) => total + Number(transaction.amount), 0)
-          .toFixed(2),
-
-        totalReceived: transactions
-          .filter((transaction) => transaction.receiverAccountId === accountId)
-          .reduce((total, transaction) => total + Number(transaction.amount), 0)
-          .toFixed(2),
-      },
-
+    return {
+      report,
       transactions,
+    };
+  }
+
+  // GET - Buscar relatório específico
+  async getReport(reportId: string) {
+    const [report] = await this.drizzle
+      .select()
+      .from(reports)
+      .where(eq(reports.id, reportId));
+
+    if (!report) {
+      throw new NotFoundException('Relatório não encontrado');
+    }
+
+    return report;
+  }
+
+  // GET - Listar relatórios do usuário
+  async getReportsByUser(userId: string) {
+    const [user] = await this.drizzle
+      .select()
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    return this.drizzle
+      .select()
+      .from(reports)
+      .where(eq(reports.userId, userId))
+      .orderBy(asc(reports.createdAt));
+  }
+
+  // Métodos auxiliares
+  private async getUserAccount(userId: string) {
+    const [user] = await this.drizzle
+      .select()
+      .from(users)
+      .where(eq(users.id, userId));
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    const [account] = await this.drizzle
+      .select()
+      .from(bankAccounts)
+      .where(eq(bankAccounts.userId, userId));
+
+    if (!account) {
+      throw new NotFoundException('Conta bancária não encontrada');
+    }
+
+    return account;
+  }
+
+  private calculateTotals(
+    transactions: (typeof pixTransactions.$inferSelect)[],
+    accountId: string,
+  ) {
+    let totalSent = 0;
+    let totalReceived = 0;
+
+    for (const transaction of transactions) {
+      const amount = Number(transaction.amount);
+
+      if (transaction.senderAccountId === accountId) {
+        totalSent += amount;
+      }
+
+      if (transaction.receiverAccountId === accountId) {
+        totalReceived += amount;
+      }
+    }
+
+    return {
+      totalSent,
+      totalReceived,
     };
   }
 }
