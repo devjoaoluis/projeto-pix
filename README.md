@@ -31,6 +31,8 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 - ✅ Associar chave Pix a uma conta (tipos: CPF, CNPJ, Email, Telefone, Aleatória)
 - ✅ Gerar chave Pix aleatória automaticamente
 - ✅ Validar chave Pix (verifica se existe e está ativa)
+- ✅ Alterar chave Pix associada (atualização do valor da chave ou da conta bancária vinculada)
+- ✅ Remover chave Pix associada à conta
 
 ### 💸 Transferências (Pix)
 - ✅ Transferir valor entre contas usando chave Pix (envio)
