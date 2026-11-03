@@ -170,6 +170,19 @@ Content-Type: application/json
 
 PATCH {{baseUrl}}/pix/keys/account/{{bankAccountId}}/{{pixKeyId}}/random
 
+### Desbloquear chave Pix suspensa
+
+PATCH {{baseUrl}}/pix/keys/account/{{bankAccountId}}/{{pixKeyId}}/unblock
+
+### Suspender chave Pix
+
+PATCH {{baseUrl}}/pix/keys/account/{{bankAccountId}}/{{pixKeyId}}/suspend
+Content-Type: application/json
+
+{
+  "reason": "Suspeita de fraude ou bloqueio temporário"
+}
+
 ### Remover chave Pix
 
 DELETE {{baseUrl}}/pix/keys/account/{{bankAccountId}}/{{pixKeyId}}
