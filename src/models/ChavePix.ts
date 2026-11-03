@@ -20,4 +20,15 @@ export class ChavePix {
     this.suspensa = false;
     this.dataAssociacao = new Date();
   }
+
+  alterarConta(novaConta: ContaBancaria): void {
+    this.conta = novaConta;
+  }
+
+  alterarValor(novoValor: string, novoTipo?: TipoChavePix): void {
+    this.valor = novoValor;
+    if (novoTipo) {
+      this.tipo = novoTipo;
+    }
+  }
 }
