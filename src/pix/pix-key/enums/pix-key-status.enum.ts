@@ -3,3 +3,4 @@ export enum PixKeyStatus {
   SUSPENDED = 'SUSPENDED',
   BLOCKED = 'BLOCKED',
 }
+
