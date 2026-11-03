@@ -3,12 +3,14 @@ import {
   Inject,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, and } from 'drizzle-orm';
 import { PixKeyType } from './enums/pix-key-type.enum';
 import { randomUUID } from 'crypto';
 import { CreatePixKeyDto } from './dto/create-pix-key.dto';
+import { UpdatePixKeyDto } from './dto/update-pix-key.dto';
 import { pixKeys, bankAccounts } from '../../db/schema';
 
 @Injectable()
@@ -110,6 +112,104 @@ export class PixKeyService {
       .where(eq(pixKeys.key, key));
 
     return pixKey;
+  }
+
+  async findById(id: string) {
+    const [pixKey] = await this.db
+      .select()
+      .from(pixKeys)
+      .where(eq(pixKeys.id, id));
+
+    return pixKey;
+  }
+
+  async update(bankAccountId: string, id: string, dto: UpdatePixKeyDto) {
+    if (!dto || (!dto.key && !dto.bankAccountId && !dto.newBankAccountId)) {
+      throw new BadRequestException(
+        'Pelo menos um campo deve ser informado para atualização',
+      );
+    }
+
+    const [bankAccount] = await this.db
+      .select()
+      .from(bankAccounts)
+      .where(eq(bankAccounts.id, bankAccountId));
+
+    if (!bankAccount) {
+      throw new NotFoundException('Conta bancária não encontrada');
+    }
+
+    const [pixKey] = await this.db
+      .select()
+      .from(pixKeys)
+      .where(and(eq(pixKeys.id, id), eq(pixKeys.bankAccountId, bankAccountId)));
+
+    if (!pixKey) {
+      throw new NotFoundException('Chave Pix não encontrada');
+    }
+
+    const fieldsToUpdate: Partial<typeof pixKeys.$inferInsert> = {};
+
+    if (dto.key) {
+      const type = this.getPixKeyType(dto.key);
+      const normalizedKey = this.normalizeKey(dto.key, type);
+
+      if (normalizedKey !== pixKey.key) {
+        const existingKey = await this.findByKey(normalizedKey);
+        if (existingKey && existingKey.id !== id) {
+          throw new ConflictException('Esta chave Pix já está cadastrada');
+        }
+        fieldsToUpdate.key = normalizedKey;
+        fieldsToUpdate.type = type;
+      }
+    }
+
+    const targetBankAccountId = dto.newBankAccountId || dto.bankAccountId;
+    if (targetBankAccountId && targetBankAccountId !== bankAccountId) {
+      const [targetAccount] = await this.db
+        .select()
+        .from(bankAccounts)
+        .where(eq(bankAccounts.id, targetBankAccountId));
+
+      if (!targetAccount) {
+        throw new NotFoundException('Nova conta bancária não encontrada');
+      }
+
+      fieldsToUpdate.bankAccountId = targetBankAccountId;
+    }
+
+    if (Object.keys(fieldsToUpdate).length === 0) {
+      return pixKey;
+    }
+
+    const [updatedPixKey] = await this.db
+      .update(pixKeys)
+      .set(fieldsToUpdate)
+      .where(eq(pixKeys.id, id))
+      .returning();
+
+    return updatedPixKey;
+  }
+
+  async updateWithoutAccount(id: string, dto: UpdatePixKeyDto) {
+    if (!dto || (!dto.key && !dto.bankAccountId && !dto.newBankAccountId)) {
+      throw new BadRequestException(
+        'Pelo menos um campo deve ser informado para atualização',
+      );
+    }
+
+    const pixKey = await this.findById(id);
+
+    if (!pixKey) {
+      throw new NotFoundException('Chave Pix não encontrada');
+    }
+
+    return this.update(pixKey.bankAccountId, id, dto);
+  }
+
+  async updateRandomKey(bankAccountId: string, id: string) {
+    const key = randomUUID();
+    return this.update(bankAccountId, id, { key });
   }
 
   async remove(bankAccountId: string, id: string) {
