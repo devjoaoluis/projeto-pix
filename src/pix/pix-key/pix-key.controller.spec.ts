@@ -4,6 +4,7 @@ import { PixKeyController } from './pix-key.controller';
 import { PixKeyService } from './pix-key.service';
 import { CreatePixKeyDto } from './dto/create-pix-key.dto';
 import { UpdatePixKeyDto } from './dto/update-pix-key.dto';
+import { SuspendPixKeyDto } from './dto/suspend-pix-key.dto';
 
 describe('PixKeyController', () => {
   let controller: PixKeyController;
@@ -16,6 +17,10 @@ describe('PixKeyController', () => {
     update: jest.fn(),
     updateWithoutAccount: jest.fn(),
     updateRandomKey: jest.fn(),
+    unblock: jest.fn(),
+    unblockWithoutAccount: jest.fn(),
+    suspend: jest.fn(),
+    suspendWithoutAccount: jest.fn(),
     remove: jest.fn(),
   };
 
@@ -129,6 +134,130 @@ describe('PixKeyController', () => {
 
       const result = await controller.updateByIdPut('key-1', dto);
       expect(service.updateWithoutAccount).toHaveBeenCalledWith('key-1', dto);
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('unblock (Desbloquear Chave PIX Suspensa)', () => {
+    it('deve chamar service.unblock via PATCH /:bankAccountId/:id/unblock', async () => {
+      const expected = { id: 'key-1', status: 'ACTIVE' };
+      mockPixKeyService.unblock.mockResolvedValue(expected);
+
+      const result = await controller.unblock('acc-1', 'key-1');
+      expect(service.unblock).toHaveBeenCalledWith('acc-1', 'key-1');
+      expect(result).toEqual(expected);
+    });
+
+    it('deve chamar service.unblock via PUT /:bankAccountId/:id/unblock', async () => {
+      const expected = { id: 'key-1', status: 'ACTIVE' };
+      mockPixKeyService.unblock.mockResolvedValue(expected);
+
+      const result = await controller.unblockPut('acc-1', 'key-1');
+      expect(service.unblock).toHaveBeenCalledWith('acc-1', 'key-1');
+      expect(result).toEqual(expected);
+    });
+
+    it('deve chamar service.unblock via PATCH /:bankAccountId/:id/desbloquear', async () => {
+      const expected = { id: 'key-1', status: 'ACTIVE' };
+      mockPixKeyService.unblock.mockResolvedValue(expected);
+
+      const result = await controller.desbloquear('acc-1', 'key-1');
+      expect(service.unblock).toHaveBeenCalledWith('acc-1', 'key-1');
+      expect(result).toEqual(expected);
+    });
+
+    it('deve chamar service.unblock via PATCH /:bankAccountId/:id/activate', async () => {
+      const expected = { id: 'key-1', status: 'ACTIVE' };
+      mockPixKeyService.unblock.mockResolvedValue(expected);
+
+      const result = await controller.activate('acc-1', 'key-1');
+      expect(service.unblock).toHaveBeenCalledWith('acc-1', 'key-1');
+      expect(result).toEqual(expected);
+    });
+
+    it('deve chamar service.unblockWithoutAccount via PATCH /:id/unblock', async () => {
+      const expected = { id: 'key-1', status: 'ACTIVE' };
+      mockPixKeyService.unblockWithoutAccount.mockResolvedValue(expected);
+
+      const result = await controller.unblockById('key-1');
+      expect(service.unblockWithoutAccount).toHaveBeenCalledWith('key-1');
+      expect(result).toEqual(expected);
+    });
+
+    it('deve chamar service.unblockWithoutAccount via PUT /:id/unblock', async () => {
+      const expected = { id: 'key-1', status: 'ACTIVE' };
+      mockPixKeyService.unblockWithoutAccount.mockResolvedValue(expected);
+
+      const result = await controller.unblockByIdPut('key-1');
+      expect(service.unblockWithoutAccount).toHaveBeenCalledWith('key-1');
+      expect(result).toEqual(expected);
+    });
+
+    it('deve chamar service.unblockWithoutAccount via PATCH /:id/desbloquear', async () => {
+      const expected = { id: 'key-1', status: 'ACTIVE' };
+      mockPixKeyService.unblockWithoutAccount.mockResolvedValue(expected);
+
+      const result = await controller.desbloquearById('key-1');
+      expect(service.unblockWithoutAccount).toHaveBeenCalledWith('key-1');
+      expect(result).toEqual(expected);
+    });
+
+    it('deve chamar service.unblockWithoutAccount via PATCH /:id/activate', async () => {
+      const expected = { id: 'key-1', status: 'ACTIVE' };
+      mockPixKeyService.unblockWithoutAccount.mockResolvedValue(expected);
+
+      const result = await controller.activateById('key-1');
+      expect(service.unblockWithoutAccount).toHaveBeenCalledWith('key-1');
+      expect(result).toEqual(expected);
+    });
+  });
+
+  describe('suspend (Suspender Chave PIX)', () => {
+    it('deve chamar service.suspend via PATCH /:bankAccountId/:id/suspend', async () => {
+      const dto: SuspendPixKeyDto = { reason: 'Suspeita' };
+      const expected = { id: 'key-1', status: 'SUSPENDED' };
+      mockPixKeyService.suspend.mockResolvedValue(expected);
+
+      const result = await controller.suspend('acc-1', 'key-1', dto);
+      expect(service.suspend).toHaveBeenCalledWith(
+        'acc-1',
+        'key-1',
+        'Suspeita',
+      );
+      expect(result).toEqual(expected);
+    });
+
+    it('deve chamar service.suspend via PATCH /:bankAccountId/:id/block', async () => {
+      const expected = { id: 'key-1', status: 'SUSPENDED' };
+      mockPixKeyService.suspend.mockResolvedValue(expected);
+
+      const result = await controller.block('acc-1', 'key-1');
+      expect(service.suspend).toHaveBeenCalledWith('acc-1', 'key-1', undefined);
+      expect(result).toEqual(expected);
+    });
+
+    it('deve chamar service.suspendWithoutAccount via PATCH /:id/suspend', async () => {
+      const dto: SuspendPixKeyDto = { reason: 'Suspeita' };
+      const expected = { id: 'key-1', status: 'SUSPENDED' };
+      mockPixKeyService.suspendWithoutAccount.mockResolvedValue(expected);
+
+      const result = await controller.suspendById('key-1', dto);
+      expect(service.suspendWithoutAccount).toHaveBeenCalledWith(
+        'key-1',
+        'Suspeita',
+      );
+      expect(result).toEqual(expected);
+    });
+
+    it('deve chamar service.suspendWithoutAccount via PATCH /:id/block', async () => {
+      const expected = { id: 'key-1', status: 'SUSPENDED' };
+      mockPixKeyService.suspendWithoutAccount.mockResolvedValue(expected);
+
+      const result = await controller.blockById('key-1');
+      expect(service.suspendWithoutAccount).toHaveBeenCalledWith(
+        'key-1',
+        undefined,
+      );
       expect(result).toEqual(expected);
     });
   });
