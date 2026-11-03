@@ -31,4 +31,14 @@ export class ChavePix {
       this.tipo = novoTipo;
     }
   }
+
+  suspender(): void {
+    this.suspensa = true;
+    this.ativa = false;
+  }
+
+  desbloquear(): void {
+    this.suspensa = false;
+    this.ativa = true;
+  }
 }
