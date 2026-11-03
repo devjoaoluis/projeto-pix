@@ -1,0 +1,312 @@
+@baseUrl = http://localhost:3000
+
+# ============================================================
+
+# VARIÁVEIS
+
+# ============================================================
+
+@userId = eaa848b3-6e04-4127-aadd-244ed3320b64
+@userId2 = dcda386c-211f-4d79-b85a-4d1b22dccbbd
+
+@bankAccountId = ddf4a027-db04-47bc-b934-cbc031ec2d3d
+@bankAccountId2 = 66d818da-1ff2-4de3-b0d9-38b719862b2a
+
+@pixKeyId = COLE_UUID_CHAVE_PIX_AQUI
+
+@transactionId = 3150aafd-1f1d-44a6-a8de-bca6414da369
+
+@pixId = b032e4c8-f032-4270-aa60-f425a96f1acf
+
+@reportId = COLE_UUID_RELATORIO_AQUI
+
+# ============================================================
+
+# 1. USUÁRIOS
+
+# ============================================================
+
+### Criar usuário
+
+POST {{baseUrl}}/users
+Content-Type: application/json
+
+{
+"name": "Luis Gomes",
+"cpf": "05489971363",
+"email": "luis@gmail.com",
+"phone": "11999999998"
+}
+
+### Listar usuários
+
+GET {{baseUrl}}/users
+
+### Buscar usuário por ID
+
+GET {{baseUrl}}/users/{{userId}}
+
+# ============================================================
+
+# 2. CONTAS BANCÁRIAS
+
+# ============================================================
+
+### Criar conta bancária
+
+POST {{baseUrl}}/bank-accounts
+Content-Type: application/json
+
+{
+"userId": "{{userId}}"
+}
+
+### Criar segunda conta bancária
+
+POST {{baseUrl}}/bank-accounts
+Content-Type: application/json
+
+{
+"userId": "{{userId2}}"
+}
+
+### Listar contas
+
+GET {{baseUrl}}/bank-accounts
+
+### Buscar conta por ID
+
+GET {{baseUrl}}/bank-accounts/{{bankAccountId}}
+
+### Buscar conta pelo usuário
+
+GET {{baseUrl}}/bank-accounts/user/{{userId}}
+
+### Consultar saldo
+
+GET {{baseUrl}}/bank-accounts/{{bankAccountId}}/balance
+
+### Fazer depósito
+
+PATCH {{baseUrl}}/bank-accounts/{{bankAccountId}}/balance
+Content-Type: application/json
+
+{
+"amount": 500.00
+}
+
+### Fazer segundo depósito
+
+PATCH {{baseUrl}}/bank-accounts/{{bankAccountId2}}/balance
+Content-Type: application/json
+
+{
+"amount": 500.00
+}
+
+### Atualizar status da conta
+
+PATCH {{baseUrl}}/bank-accounts/{{bankAccountId}}
+Content-Type: application/json
+
+{
+"status": "INACTIVE"
+}
+
+### Bloquear conta
+
+PATCH {{baseUrl}}/bank-accounts/{{bankAccountId}}/block
+
+### Ativar conta
+
+PATCH {{baseUrl}}/bank-accounts/{{bankAccountId}}/activate
+
+### Deletar conta
+
+DELETE {{baseUrl}}/bank-accounts/{{bankAccountId}}
+
+# ============================================================
+
+# 3. CHAVES PIX
+
+# ============================================================
+
+### Criar chave Pix
+
+POST {{baseUrl}}/pix/keys/account/{{bankAccountId2}}
+Content-Type: application/json
+
+{
+"key": "luis@gmail.com"
+}
+
+### Listar chaves Pix da conta
+
+GET {{baseUrl}}/pix/keys/account/{{bankAccountId}}
+
+### Gerar chave Pix aleatória
+
+POST {{baseUrl}}/pix/keys/account/{{bankAccountId}}/random
+
+### Alterar chave Pix associada
+
+PATCH {{baseUrl}}/pix/keys/account/{{bankAccountId}}/{{pixKeyId}}
+Content-Type: application/json
+
+{
+  "key": "novoemail@gmail.com"
+}
+
+### Alterar conta associada à chave Pix (portabilidade)
+
+PATCH {{baseUrl}}/pix/keys/account/{{bankAccountId}}/{{pixKeyId}}
+Content-Type: application/json
+
+{
+  "bankAccountId": "{{bankAccountId2}}"
+}
+
+### Alterar chave Pix para nova aleatória
+
+PATCH {{baseUrl}}/pix/keys/account/{{bankAccountId}}/{{pixKeyId}}/random
+
+### Remover chave Pix
+
+DELETE {{baseUrl}}/pix/keys/account/{{bankAccountId}}/{{pixKeyId}}
+
+# ============================================================
+
+# 4. TRANSAÇÕES PIX
+
+# ============================================================
+
+### Listar todas as transações
+
+GET {{baseUrl}}/pix/transactions
+
+### Listar transações da conta
+
+GET {{baseUrl}}/pix/transactions/account/{{bankAccountId}}
+
+### Listar transações por período
+
+GET {{baseUrl}}/pix/transactions/account/{{bankAccountId}}?startDate=2026-09-01T00:00:00Z&endDate=2026-09-30T23:59:59Z
+
+### Realizar transferência Pix
+
+POST {{baseUrl}}/pix/transactions/{{bankAccountId}}/transfer
+Content-Type: application/json
+
+{
+"pixKey": "luis@gmail.com",
+"amount": 23.23,
+"description": "Pagamento do almoço",
+"idempotencyKey": "11117111-1111-1111-1111-111111111111"
+}
+
+### Realizar segunda transferência
+
+POST {{baseUrl}}/pix/transactions/{{bankAccountId}}/transfer
+Content-Type: application/json
+
+{
+"pixKey": "luis@gmail.com",
+"amount": 50.00,
+"description": "Segundo pagamento",
+"idempotencyKey": "22222222-2222-2222-2222-222222222222"
+}
+
+### Receber Pix via webhook
+
+POST {{baseUrl}}/pix/transactions/webhook
+Content-Type: application/json
+
+{
+"pixKey": "06521420364",
+"amount": 1000.00,
+"description": "Pagamento freela",
+"externalTransactionId": "id-transacao-banco-central-001"
+}
+
+### Buscar transações depois do webhook
+
+GET {{baseUrl}}/pix/transactions
+
+### Cancelar transação
+
+PATCH {{baseUrl}}/pix/transactions/{{transactionId}}/cancel
+
+### Tentar cancelar novamente
+
+PATCH {{baseUrl}}/pix/transactions/{{transactionId}}/cancel
+
+# ============================================================
+
+# 5. GERAÇÃO DE PIX / QR CODE
+
+# ============================================================
+
+### Gerar cobrança Pix
+
+POST {{baseUrl}}/pix/generate
+Content-Type: application/json
+
+{
+"bankAccountId": "{{bankAccountId}}",
+"amount": 150.00,
+"description": "Fatura 01/2026"
+}
+
+### Consultar status do Pix
+
+GET {{baseUrl}}/pix/{{pixId}}/status
+
+### Simular pagamento do Pix
+
+PATCH {{baseUrl}}/pix/{{pixId}}/simulate-payment
+
+### Consultar status novamente
+
+GET {{baseUrl}}/pix/{{pixId}}/status
+
+# ============================================================
+
+# 6. RELATÓRIOS
+
+# ============================================================
+
+### Gerar relatório geral
+
+POST {{baseUrl}}/pix/reports/user/{{userId}}
+
+### Gerar relatório por período
+
+POST {{baseUrl}}/pix/reports/user/{{userId}}/period
+Content-Type: application/json
+
+{
+"startDate": "2026-09-01",
+"endDate": "2026-09-30"
+}
+
+### Listar relatórios do usuário
+
+GET {{baseUrl}}/pix/reports/user/{{userId}}
+
+### Buscar relatório específico
+
+GET {{baseUrl}}/pix/reports/{{reportId}}
+
+# ============================================================
+
+# 7. NOTIFICAÇÕES
+
+# ============================================================
+
+### Listar todas as notificações
+
+GET {{baseUrl}}/notifications
+
+### Listar notificações da conta
+
+GET {{baseUrl}}/notifications/{{bankAccountId}}
