@@ -7,6 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PixKeyType } from './enums/pix-key-type.enum';
+import { PixKeyStatus } from './enums/pix-key-status.enum';
+import { BankAccountStatus } from '../../bank-account/enums/bank-account-status.enu';
 
 describe('PixKeyService', () => {
   let service: PixKeyService;
@@ -97,6 +99,7 @@ describe('PixKeyService', () => {
         bankAccountId: 'acc-1',
         key: 'test@email.com',
         type: PixKeyType.EMAIL,
+        status: PixKeyStatus.ACTIVE,
       };
       enqueueSelect([{ id: 'acc-1' }]); // bankAccount
       enqueueSelect([]); // key not existing
@@ -116,6 +119,7 @@ describe('PixKeyService', () => {
         bankAccountId: 'acc-1',
         key: '+5511999999999',
         type: PixKeyType.PHONE,
+        status: PixKeyStatus.ACTIVE,
       };
       enqueueSelect([{ id: 'acc-1' }]);
       enqueueSelect([]);
@@ -132,6 +136,7 @@ describe('PixKeyService', () => {
         bankAccountId: 'acc-1',
         key: '12345678909',
         type: PixKeyType.CPF,
+        status: PixKeyStatus.ACTIVE,
       };
       enqueueSelect([{ id: 'acc-1' }]);
       enqueueSelect([]);
@@ -148,6 +153,7 @@ describe('PixKeyService', () => {
         bankAccountId: 'acc-1',
         key: '12345678000195',
         type: PixKeyType.CNPJ,
+        status: PixKeyStatus.ACTIVE,
       };
       enqueueSelect([{ id: 'acc-1' }]);
       enqueueSelect([]);
@@ -216,6 +222,7 @@ describe('PixKeyService', () => {
         bankAccountId: 'acc-1',
         key: 'e30a524e-72bc-448e-8a21-654e5657b98c',
         type: PixKeyType.RANDOM,
+        status: PixKeyStatus.ACTIVE,
       };
       insertResult = [randomKey];
 
@@ -255,6 +262,7 @@ describe('PixKeyService', () => {
         bankAccountId: 'acc-1',
         key: 'antigo@email.com',
         type: PixKeyType.EMAIL,
+        status: PixKeyStatus.ACTIVE,
       };
       const updatedPixKey = {
         ...currentPixKey,
@@ -412,6 +420,53 @@ describe('PixKeyService', () => {
 
       expect(result).toEqual(updatedPixKey);
     });
+
+    it('deve desbloquear chave Pix via update quando dto.status for ACTIVE', async () => {
+      const currentPixKey = {
+        id: 'key-1',
+        bankAccountId: 'acc-1',
+        key: 'teste@email.com',
+        type: PixKeyType.EMAIL,
+        status: PixKeyStatus.SUSPENDED,
+      };
+      const updatedPixKey = {
+        ...currentPixKey,
+        status: PixKeyStatus.ACTIVE,
+        suspendedReason: null,
+        suspendedAt: null,
+      };
+
+      enqueueSelect([{ id: 'acc-1', status: 'ACTIVE' }]); // bankAccount
+      enqueueSelect([currentPixKey]); // pixKey
+      updateResult = [updatedPixKey];
+
+      const result = await service.update('acc-1', 'key-1', {
+        status: PixKeyStatus.ACTIVE,
+      });
+
+      expect(result.status).toBe(PixKeyStatus.ACTIVE);
+    });
+
+    it('deve lançar BadRequestException no update para ACTIVE se a conta estiver bloqueada', async () => {
+      const currentPixKey = {
+        id: 'key-1',
+        bankAccountId: 'acc-1',
+        key: 'teste@email.com',
+        type: PixKeyType.EMAIL,
+        status: PixKeyStatus.SUSPENDED,
+      };
+
+      enqueueSelect([{ id: 'acc-1', status: BankAccountStatus.BLOCKED }]);
+      enqueueSelect([currentPixKey]);
+
+      await expect(
+        service.update('acc-1', 'key-1', { status: PixKeyStatus.ACTIVE }),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Não é possível desbloquear chave Pix vinculada a uma conta bloqueada',
+        ),
+      );
+    });
   });
 
   describe('updateWithoutAccount', () => {
@@ -467,6 +522,226 @@ describe('PixKeyService', () => {
 
       const result = await service.updateRandomKey('acc-1', 'key-1');
       expect(result.key).toBe('new-random-uuid');
+    });
+  });
+
+  describe('unblock (Desbloquear Chave PIX Suspensa)', () => {
+    it('deve lançar NotFoundException se a conta bancária não existir', async () => {
+      enqueueSelect([]); // bankAccount not found
+
+      await expect(service.unblock('acc-not-found', 'key-1')).rejects.toThrow(
+        new NotFoundException('Conta bancária não encontrada'),
+      );
+    });
+
+    it('deve lançar BadRequestException se a conta bancária estiver bloqueada', async () => {
+      enqueueSelect([{ id: 'acc-1', status: BankAccountStatus.BLOCKED }]);
+
+      await expect(service.unblock('acc-1', 'key-1')).rejects.toThrow(
+        new BadRequestException(
+          'Não é possível desbloquear chave Pix vinculada a uma conta bloqueada',
+        ),
+      );
+    });
+
+    it('deve lançar NotFoundException se a chave Pix não for encontrada na conta', async () => {
+      enqueueSelect([{ id: 'acc-1', status: BankAccountStatus.ACTIVE }]);
+      enqueueSelect([]); // pixKey not found
+
+      await expect(service.unblock('acc-1', 'key-not-found')).rejects.toThrow(
+        new NotFoundException('Chave Pix não encontrada'),
+      );
+    });
+
+    it('deve lançar BadRequestException se a chave Pix não estiver suspensa (já estiver ACTIVE)', async () => {
+      const activePixKey = {
+        id: 'key-1',
+        bankAccountId: 'acc-1',
+        key: 'teste@email.com',
+        status: PixKeyStatus.ACTIVE,
+      };
+
+      enqueueSelect([{ id: 'acc-1', status: BankAccountStatus.ACTIVE }]);
+      enqueueSelect([activePixKey]);
+
+      await expect(service.unblock('acc-1', 'key-1')).rejects.toThrow(
+        new BadRequestException('A chave Pix não está suspensa'),
+      );
+    });
+
+    it('deve desbloquear a chave Pix suspensa com sucesso, alterando status para ACTIVE e limpando motivo', async () => {
+      const suspendedPixKey = {
+        id: 'key-1',
+        bankAccountId: 'acc-1',
+        key: 'teste@email.com',
+        status: PixKeyStatus.SUSPENDED,
+        suspendedReason: 'MANUAL',
+        suspendedAt: new Date(),
+      };
+      const unblockedPixKey = {
+        ...suspendedPixKey,
+        status: PixKeyStatus.ACTIVE,
+        suspendedReason: null,
+        suspendedAt: null,
+      };
+
+      enqueueSelect([{ id: 'acc-1', status: BankAccountStatus.ACTIVE }]);
+      enqueueSelect([suspendedPixKey]);
+      updateResult = [unblockedPixKey];
+
+      const result = await service.unblock('acc-1', 'key-1');
+
+      expect(result).toEqual(unblockedPixKey);
+      expect(result.status).toBe(PixKeyStatus.ACTIVE);
+      expect(result.suspendedReason).toBeNull();
+      expect(dbMock.update).toHaveBeenCalled();
+    });
+
+    it('deve desbloquear a chave Pix com status BLOCKED com sucesso', async () => {
+      const blockedPixKey = {
+        id: 'key-1',
+        bankAccountId: 'acc-1',
+        key: 'teste@email.com',
+        status: PixKeyStatus.BLOCKED,
+      };
+      const unblockedPixKey = {
+        ...blockedPixKey,
+        status: PixKeyStatus.ACTIVE,
+        suspendedReason: null,
+        suspendedAt: null,
+      };
+
+      enqueueSelect([{ id: 'acc-1', status: BankAccountStatus.ACTIVE }]);
+      enqueueSelect([blockedPixKey]);
+      updateResult = [unblockedPixKey];
+
+      const result = await service.unblock('acc-1', 'key-1');
+
+      expect(result.status).toBe(PixKeyStatus.ACTIVE);
+    });
+  });
+
+  describe('suspend (Suspender Chave PIX)', () => {
+    it('deve lançar NotFoundException se a conta bancária não for encontrada', async () => {
+      enqueueSelect([]);
+
+      await expect(service.suspend('acc-not-found', 'key-1')).rejects.toThrow(
+        new NotFoundException('Conta bancária não encontrada'),
+      );
+    });
+
+    it('deve lançar NotFoundException se a chave Pix não for encontrada', async () => {
+      enqueueSelect([{ id: 'acc-1' }]);
+      enqueueSelect([]);
+
+      await expect(service.suspend('acc-1', 'key-not-found')).rejects.toThrow(
+        new NotFoundException('Chave Pix não encontrada'),
+      );
+    });
+
+    it('deve lançar ConflictException se a chave Pix já estiver suspensa', async () => {
+      const suspendedPixKey = {
+        id: 'key-1',
+        bankAccountId: 'acc-1',
+        status: PixKeyStatus.SUSPENDED,
+      };
+
+      enqueueSelect([{ id: 'acc-1' }]);
+      enqueueSelect([suspendedPixKey]);
+
+      await expect(service.suspend('acc-1', 'key-1')).rejects.toThrow(
+        new ConflictException('Chave Pix já está suspensa'),
+      );
+    });
+
+    it('deve suspender a chave Pix com sucesso', async () => {
+      const activePixKey = {
+        id: 'key-1',
+        bankAccountId: 'acc-1',
+        key: 'teste@email.com',
+        status: PixKeyStatus.ACTIVE,
+      };
+      const suspendedPixKey = {
+        ...activePixKey,
+        status: PixKeyStatus.SUSPENDED,
+        suspendedReason: 'Suspeita de fraude',
+      };
+
+      enqueueSelect([{ id: 'acc-1' }]);
+      enqueueSelect([activePixKey]);
+      updateResult = [suspendedPixKey];
+
+      const result = await service.suspend(
+        'acc-1',
+        'key-1',
+        'Suspeita de fraude',
+      );
+
+      expect(result.status).toBe(PixKeyStatus.SUSPENDED);
+      expect(result.suspendedReason).toBe('Suspeita de fraude');
+      expect(dbMock.update).toHaveBeenCalled();
+    });
+  });
+
+  describe('unblockWithoutAccount', () => {
+    it('deve lançar NotFoundException se a chave Pix não for encontrada', async () => {
+      enqueueSelect([]); // findById not found
+
+      await expect(
+        service.unblockWithoutAccount('key-not-found'),
+      ).rejects.toThrow(new NotFoundException('Chave Pix não encontrada'));
+    });
+
+    it('deve localizar a conta associada e desbloquear a chave com sucesso', async () => {
+      const suspendedPixKey = {
+        id: 'key-1',
+        bankAccountId: 'acc-auto',
+        status: PixKeyStatus.SUSPENDED,
+      };
+      const unblockedPixKey = {
+        ...suspendedPixKey,
+        status: PixKeyStatus.ACTIVE,
+      };
+
+      enqueueSelect([suspendedPixKey]); // findById
+      enqueueSelect([{ id: 'acc-auto', status: BankAccountStatus.ACTIVE }]); // bankAccount in unblock
+      enqueueSelect([suspendedPixKey]); // pixKey in unblock
+      updateResult = [unblockedPixKey];
+
+      const result = await service.unblockWithoutAccount('key-1');
+
+      expect(result.status).toBe(PixKeyStatus.ACTIVE);
+    });
+  });
+
+  describe('suspendWithoutAccount', () => {
+    it('deve lançar NotFoundException se a chave Pix não for encontrada', async () => {
+      enqueueSelect([]);
+
+      await expect(
+        service.suspendWithoutAccount('key-not-found'),
+      ).rejects.toThrow(new NotFoundException('Chave Pix não encontrada'));
+    });
+
+    it('deve localizar a conta associada e suspender a chave com sucesso', async () => {
+      const activePixKey = {
+        id: 'key-1',
+        bankAccountId: 'acc-auto',
+        status: PixKeyStatus.ACTIVE,
+      };
+      const suspendedPixKey = {
+        ...activePixKey,
+        status: PixKeyStatus.SUSPENDED,
+      };
+
+      enqueueSelect([activePixKey]); // findById
+      enqueueSelect([{ id: 'acc-auto' }]); // bankAccount in suspend
+      enqueueSelect([activePixKey]); // pixKey in suspend
+      updateResult = [suspendedPixKey];
+
+      const result = await service.suspendWithoutAccount('key-1', 'Bloqueio');
+
+      expect(result.status).toBe(PixKeyStatus.SUSPENDED);
     });
   });
 });

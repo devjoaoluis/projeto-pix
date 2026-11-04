@@ -126,6 +126,20 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 - **Método**: `PATCH`
 - **Rota**: `/pix/keys/account/:bankAccountId/:idDaChave/random`
 
+### Desbloquear Chave Pix Suspensa
+- **Método**: `PATCH` ou `PUT`
+- **Rota**: `/pix/keys/account/:bankAccountId/:idDaChave/unblock` (ou `/pix/keys/:idDaChave/unblock`, `/pix/keys/account/:bankAccountId/:idDaChave/desbloquear`)
+
+### Suspender Chave Pix
+- **Método**: `PATCH`
+- **Rota**: `/pix/keys/account/:bankAccountId/:idDaChave/suspend` (ou `/pix/keys/:idDaChave/suspend`)
+- **Body** (JSON opcional):
+```json
+{
+  "reason": "Suspeita de fraude ou solicitação do cliente"
+}
+```
+
 ### Remover Chave Pix
 - **Método**: `DELETE`
 - **Rota**: `/pix/keys/account/:bankAccountId/:idDaChave`

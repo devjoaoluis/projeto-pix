@@ -11,6 +11,7 @@ import {
 import { PixKeyService } from './pix-key.service';
 import { CreatePixKeyDto } from './dto/create-pix-key.dto';
 import { UpdatePixKeyDto } from './dto/update-pix-key.dto';
+import { SuspendPixKeyDto } from './dto/suspend-pix-key.dto';
 
 @Controller(['pix/keys/account', 'pix/keys'])
 export class PixKeyController {
@@ -58,6 +59,86 @@ export class PixKeyController {
     @Param('id') id: string,
   ) {
     return this.pixKeyService.updateRandomKey(bankAccountId, id);
+  }
+
+  @Patch(':bankAccountId/:id/unblock')
+  unblock(
+    @Param('bankAccountId') bankAccountId: string,
+    @Param('id') id: string,
+  ) {
+    return this.pixKeyService.unblock(bankAccountId, id);
+  }
+
+  @Put(':bankAccountId/:id/unblock')
+  unblockPut(
+    @Param('bankAccountId') bankAccountId: string,
+    @Param('id') id: string,
+  ) {
+    return this.pixKeyService.unblock(bankAccountId, id);
+  }
+
+  @Patch(':bankAccountId/:id/desbloquear')
+  desbloquear(
+    @Param('bankAccountId') bankAccountId: string,
+    @Param('id') id: string,
+  ) {
+    return this.pixKeyService.unblock(bankAccountId, id);
+  }
+
+  @Patch(':bankAccountId/:id/activate')
+  activate(
+    @Param('bankAccountId') bankAccountId: string,
+    @Param('id') id: string,
+  ) {
+    return this.pixKeyService.unblock(bankAccountId, id);
+  }
+
+  @Patch(':bankAccountId/:id/suspend')
+  suspend(
+    @Param('bankAccountId') bankAccountId: string,
+    @Param('id') id: string,
+    @Body() dto?: SuspendPixKeyDto,
+  ) {
+    return this.pixKeyService.suspend(bankAccountId, id, dto?.reason);
+  }
+
+  @Patch(':bankAccountId/:id/block')
+  block(
+    @Param('bankAccountId') bankAccountId: string,
+    @Param('id') id: string,
+    @Body() dto?: SuspendPixKeyDto,
+  ) {
+    return this.pixKeyService.suspend(bankAccountId, id, dto?.reason);
+  }
+
+  @Patch(':id/unblock')
+  unblockById(@Param('id') id: string) {
+    return this.pixKeyService.unblockWithoutAccount(id);
+  }
+
+  @Put(':id/unblock')
+  unblockByIdPut(@Param('id') id: string) {
+    return this.pixKeyService.unblockWithoutAccount(id);
+  }
+
+  @Patch(':id/desbloquear')
+  desbloquearById(@Param('id') id: string) {
+    return this.pixKeyService.unblockWithoutAccount(id);
+  }
+
+  @Patch(':id/activate')
+  activateById(@Param('id') id: string) {
+    return this.pixKeyService.unblockWithoutAccount(id);
+  }
+
+  @Patch(':id/suspend')
+  suspendById(@Param('id') id: string, @Body() dto?: SuspendPixKeyDto) {
+    return this.pixKeyService.suspendWithoutAccount(id, dto?.reason);
+  }
+
+  @Patch(':id/block')
+  blockById(@Param('id') id: string, @Body() dto?: SuspendPixKeyDto) {
+    return this.pixKeyService.suspendWithoutAccount(id, dto?.reason);
   }
 
   @Patch(':id')

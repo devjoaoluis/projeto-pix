@@ -48,6 +48,11 @@ export const pixKeys = pgTable(
       .references(() => bankAccounts.id),
     key: varchar('key', { length: 255 }).notNull(),
     type: varchar('type', { length: 20 }).notNull(),
+    status: varchar('status', { length: 20 })
+      .default('ACTIVE')
+      .notNull(),
+    suspendedReason: varchar('suspended_reason', { length: 255 }),
+    suspendedAt: timestamp('suspended_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [uniqueIndex('pix_key_unique').on(table.key)],
