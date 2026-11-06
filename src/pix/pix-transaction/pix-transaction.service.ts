@@ -10,6 +10,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, sql, or, and, gte, lte, SQL, desc } from 'drizzle-orm';
 import { TransferPixDto } from './dto/transfer-pix.dto';
 import { FilterPixTransactionsDto } from './dto/filter-pix-transactions.dto';
+import { SchedulePixDto } from './dto/schedule-pix.dto';
 import { bankAccounts, pixKeys, pixTransactions } from '../../db/schema';
 import { NotificationService } from '../../notification/notification.service';
 import { FraudDetectionService } from '../fraud/fraud-detection.service';
@@ -38,7 +39,9 @@ export class PixTransactionService {
   ) {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
-        throw new BadRequestException('endDate não pode ser menor que startDate');
+        throw new BadRequestException(
+          'endDate não pode ser menor que startDate',
+        );
       }
     }
 
@@ -53,11 +56,15 @@ export class PixTransactionService {
     );
 
     if (filterDto.startDate) {
-      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+      conditions.push(
+        gte(pixTransactions.createdAt, new Date(filterDto.startDate)),
+      );
     }
 
     if (filterDto.endDate) {
-      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+      conditions.push(
+        lte(pixTransactions.createdAt, new Date(filterDto.endDate)),
+      );
     }
 
     return this.db
@@ -67,19 +74,15 @@ export class PixTransactionService {
       .orderBy(pixTransactions.createdAt);
   }
 
-  /**
-   * Histórico de transações de uma conta.
-   * Retorna todas as operações PIX que passaram pela conta (enviadas,
-   * recebidas e cobranças), com o `direction` calculado em relação à
-   * conta que está consultando.
-   */
   async getHistory(
     bankAccountId: string,
     filterDto: FilterPixTransactionsDto,
   ): Promise<HistoryResponse> {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
-        throw new BadRequestException('endDate não pode ser menor que startDate');
+        throw new BadRequestException(
+          'endDate não pode ser menor que startDate',
+        );
       }
     }
 
@@ -103,11 +106,15 @@ export class PixTransactionService {
     );
 
     if (filterDto.startDate) {
-      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+      conditions.push(
+        gte(pixTransactions.createdAt, new Date(filterDto.startDate)),
+      );
     }
 
     if (filterDto.endDate) {
-      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+      conditions.push(
+        lte(pixTransactions.createdAt, new Date(filterDto.endDate)),
+      );
     }
 
     const rows = await this.db
@@ -177,9 +184,14 @@ export class PixTransactionService {
   }
 
   async transfer(senderAccountId: string, dto: TransferPixDto) {
-    const senderAccount = await this.getSenderAccount(senderAccountId, dto.amount);
+    const senderAccount = await this.getSenderAccount(
+      senderAccountId,
+      dto.amount,
+    );
     const receiverPixKey = await this.resolvePixKey(dto.pixKey);
-    const receiverAccount = await this.getReceiverAccount(receiverPixKey.bankAccountId);
+    const receiverAccount = await this.getReceiverAccount(
+      receiverPixKey.bankAccountId,
+    );
 
     if (senderAccount.id === receiverAccount.id) {
       throw new BadRequestException('Não é possível transferir para si mesmo');
@@ -252,6 +264,161 @@ export class PixTransactionService {
     };
   }
 
+  async scheduleTransfer(senderAccountId: string, dto: SchedulePixDto) {
+    const scheduledDate = new Date(dto.scheduledFor);
+    if (isNaN(scheduledDate.getTime()) || scheduledDate <= new Date()) {
+      throw new BadRequestException(
+        'A data de agendamento (scheduledFor) deve ser uma data futura válida',
+      );
+    }
+
+    if (dto.amount <= 0) {
+      throw new BadRequestException(
+        'O valor do PIX agendado deve ser positivo',
+      );
+    }
+
+    const [senderAccount] = await this.db
+      .select()
+      .from(bankAccounts)
+      .where(eq(bankAccounts.id, senderAccountId));
+
+    if (!senderAccount) {
+      throw new NotFoundException('Conta do remetente não encontrada');
+    }
+
+    if (senderAccount.status !== 'ACTIVE') {
+      throw new BadRequestException(
+        'Conta do remetente está bloqueada ou inativa',
+      );
+    }
+
+    const receiverPixKey = await this.resolvePixKey(dto.pixKey);
+    const receiverAccount = await this.getReceiverAccount(
+      receiverPixKey.bankAccountId,
+    );
+
+    if (senderAccount.id === receiverAccount.id) {
+      throw new BadRequestException(
+        'Não é possível agendar transferência para si mesmo',
+      );
+    }
+
+    if (dto.idempotencyKey) {
+      await this.checkIdempotency(dto.idempotencyKey);
+    }
+
+    const [scheduledTransaction] = await this.db
+      .insert(pixTransactions)
+      .values({
+        senderAccountId: senderAccount.id,
+        receiverAccountId: receiverAccount.id,
+        pixKeyId: receiverPixKey.id,
+        amount: dto.amount.toString(),
+        description: dto.description,
+        status: 'SCHEDULED',
+        type: 'TRANSFER',
+        scheduledFor: scheduledDate,
+        idempotencyKey: dto.idempotencyKey,
+      })
+      .returning();
+
+    return {
+      message: 'Transferência PIX agendada com sucesso',
+      transaction: scheduledTransaction,
+    };
+  }
+
+  async getScheduledByAccount(bankAccountId: string) {
+    return this.db
+      .select()
+      .from(pixTransactions)
+      .where(
+        and(
+          eq(pixTransactions.senderAccountId, bankAccountId),
+          eq(pixTransactions.status, 'SCHEDULED'),
+        ),
+      )
+      .orderBy(pixTransactions.scheduledFor);
+  }
+
+  async executeScheduled(transactionId: string) {
+    const [transaction] = await this.db
+      .select()
+      .from(pixTransactions)
+      .where(eq(pixTransactions.id, transactionId));
+
+    if (!transaction) {
+      throw new NotFoundException('Transação agendada não encontrada');
+    }
+
+    if (transaction.status !== 'SCHEDULED') {
+      throw new BadRequestException(
+        'Apenas transações com status SCHEDULED podem ser executadas',
+      );
+    }
+
+    if (!transaction.senderAccountId || !transaction.receiverAccountId) {
+      throw new BadRequestException(
+        'Transação agendada possui dados de conta incompletos',
+      );
+    }
+
+    const amount = parseFloat(transaction.amount);
+    const senderAccount = await this.getSenderAccount(
+      transaction.senderAccountId,
+      amount,
+    );
+    const receiverAccount = await this.getReceiverAccount(
+      transaction.receiverAccountId,
+    );
+
+    const executedTransaction = await this.db.transaction(async (tx) => {
+      await tx
+        .update(bankAccounts)
+        .set({ balance: sql`balance - ${amount}` })
+        .where(eq(bankAccounts.id, senderAccount.id));
+
+      await tx
+        .update(bankAccounts)
+        .set({ balance: sql`balance + ${amount}` })
+        .where(eq(bankAccounts.id, receiverAccount.id));
+
+      const [updated] = await tx
+        .update(pixTransactions)
+        .set({ status: 'COMPLETED' })
+        .where(eq(pixTransactions.id, transactionId))
+        .returning();
+
+      return updated;
+    });
+
+    const senderNotification = this.notificationService.notify(
+      senderAccount.id,
+      executedTransaction.id,
+      'TRANSFER',
+      amount,
+      transaction.description ?? 'PIX agendado efetuado',
+    );
+
+    const receiverNotification = this.notificationService.notify(
+      receiverAccount.id,
+      executedTransaction.id,
+      'RECEIVE',
+      amount,
+      transaction.description ?? 'PIX agendado recebido',
+    );
+
+    return {
+      message: 'PIX agendado executado com sucesso',
+      transaction: executedTransaction,
+      notifications: {
+        sender: senderNotification,
+        receiver: receiverNotification,
+      },
+    };
+  }
+
   async cancel(transactionId: string) {
     const [transaction] = await this.db
       .select()
@@ -296,7 +463,7 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.senderAccountId,
         transaction.id,
-        'CANCELED' as any,
+        'CANCELED' as 'TRANSFER',
         Number(transaction.amount),
         'A sua transação foi cancelada',
       );
@@ -306,7 +473,7 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.receiverAccountId,
         transaction.id,
-        'CANCELED' as any,
+        'CANCELED' as 'RECEIVE',
         Number(transaction.amount),
         'Transação recebida foi cancelada',
       );
@@ -371,7 +538,9 @@ export class PixTransactionService {
     }
 
     if (account.status !== 'ACTIVE') {
-      throw new BadRequestException('Conta do remetente está bloqueada ou inativa');
+      throw new BadRequestException(
+        'Conta do remetente está bloqueada ou inativa',
+      );
     }
 
     if (parseFloat(account.balance) < amount) {
@@ -405,7 +574,9 @@ export class PixTransactionService {
     }
 
     if (account.status !== 'ACTIVE') {
-      throw new BadRequestException('Conta do destinatário está bloqueada ou inativa');
+      throw new BadRequestException(
+        'Conta do destinatário está bloqueada ou inativa',
+      );
     }
 
     return account;

@@ -11,6 +11,7 @@ import { PixTransactionService } from './pix-transaction.service';
 import { TransferPixDto } from './dto/transfer-pix.dto';
 import { ReceivePixDto } from './dto/receive-pix.dto';
 import { FilterPixTransactionsDto } from './dto/filter-pix-transactions.dto';
+import { SchedulePixDto } from './dto/schedule-pix.dto';
 
 @Controller('pix/transactions')
 export class PixTransactionController {
@@ -27,6 +28,29 @@ export class PixTransactionController {
     @Body() dto: TransferPixDto,
   ) {
     return this.pixTransactionService.transfer(senderAccountId, dto);
+  }
+
+  @Post(':senderAccountId/schedule')
+  scheduleTransfer(
+    @Param('senderAccountId') senderAccountId: string,
+    @Body() dto: SchedulePixDto,
+  ) {
+    return this.pixTransactionService.scheduleTransfer(senderAccountId, dto);
+  }
+
+  @Get('account/:bankAccountId/scheduled')
+  getScheduledByAccount(@Param('bankAccountId') bankAccountId: string) {
+    return this.pixTransactionService.getScheduledByAccount(bankAccountId);
+  }
+
+  @Patch(':id/execute-scheduled')
+  executeScheduled(@Param('id') id: string) {
+    return this.pixTransactionService.executeScheduled(id);
+  }
+
+  @Post(':id/execute-scheduled')
+  executeScheduledPost(@Param('id') id: string) {
+    return this.pixTransactionService.executeScheduled(id);
   }
 
   @Get('account/:bankAccountId')
