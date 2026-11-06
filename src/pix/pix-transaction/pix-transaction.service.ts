@@ -10,6 +10,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, sql, or, and, gte, lte, SQL, desc } from 'drizzle-orm';
 import { TransferPixDto } from './dto/transfer-pix.dto';
 import { FilterPixTransactionsDto } from './dto/filter-pix-transactions.dto';
+import { RegisterTransactionLocationDto } from './dto/register-location.dto';
 import { bankAccounts, pixKeys, pixTransactions } from '../../db/schema';
 import { NotificationService } from '../../notification/notification.service';
 import { FraudDetectionService } from '../fraud/fraud-detection.service';
@@ -38,7 +39,9 @@ export class PixTransactionService {
   ) {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
-        throw new BadRequestException('endDate não pode ser menor que startDate');
+        throw new BadRequestException(
+          'endDate não pode ser menor que startDate',
+        );
       }
     }
 
@@ -53,11 +56,15 @@ export class PixTransactionService {
     );
 
     if (filterDto.startDate) {
-      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+      conditions.push(
+        gte(pixTransactions.createdAt, new Date(filterDto.startDate)),
+      );
     }
 
     if (filterDto.endDate) {
-      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+      conditions.push(
+        lte(pixTransactions.createdAt, new Date(filterDto.endDate)),
+      );
     }
 
     return this.db
@@ -67,19 +74,15 @@ export class PixTransactionService {
       .orderBy(pixTransactions.createdAt);
   }
 
-  /**
-   * Histórico de transações de uma conta.
-   * Retorna todas as operações PIX que passaram pela conta (enviadas,
-   * recebidas e cobranças), com o `direction` calculado em relação à
-   * conta que está consultando.
-   */
   async getHistory(
     bankAccountId: string,
     filterDto: FilterPixTransactionsDto,
   ): Promise<HistoryResponse> {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
-        throw new BadRequestException('endDate não pode ser menor que startDate');
+        throw new BadRequestException(
+          'endDate não pode ser menor que startDate',
+        );
       }
     }
 
@@ -103,11 +106,15 @@ export class PixTransactionService {
     );
 
     if (filterDto.startDate) {
-      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+      conditions.push(
+        gte(pixTransactions.createdAt, new Date(filterDto.startDate)),
+      );
     }
 
     if (filterDto.endDate) {
-      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+      conditions.push(
+        lte(pixTransactions.createdAt, new Date(filterDto.endDate)),
+      );
     }
 
     const rows = await this.db
@@ -176,10 +183,27 @@ export class PixTransactionService {
     return null;
   }
 
+  private validateCoordinates(latitude?: number, longitude?: number) {
+    if (latitude !== undefined && (latitude < -90 || latitude > 90)) {
+      throw new BadRequestException('Latitude deve estar entre -90 e 90');
+    }
+
+    if (longitude !== undefined && (longitude < -180 || longitude > 180)) {
+      throw new BadRequestException('Longitude deve estar entre -180 e 180');
+    }
+  }
+
   async transfer(senderAccountId: string, dto: TransferPixDto) {
-    const senderAccount = await this.getSenderAccount(senderAccountId, dto.amount);
+    this.validateCoordinates(dto.latitude, dto.longitude);
+
+    const senderAccount = await this.getSenderAccount(
+      senderAccountId,
+      dto.amount,
+    );
     const receiverPixKey = await this.resolvePixKey(dto.pixKey);
-    const receiverAccount = await this.getReceiverAccount(receiverPixKey.bankAccountId);
+    const receiverAccount = await this.getReceiverAccount(
+      receiverPixKey.bankAccountId,
+    );
 
     if (senderAccount.id === receiverAccount.id) {
       throw new BadRequestException('Não é possível transferir para si mesmo');
@@ -211,6 +235,13 @@ export class PixTransactionService {
           status: 'COMPLETED',
           type: 'TRANSFER',
           idempotencyKey: dto.idempotencyKey,
+          latitude:
+            dto.latitude !== undefined ? dto.latitude.toString() : undefined,
+          longitude:
+            dto.longitude !== undefined ? dto.longitude.toString() : undefined,
+          locationName: dto.locationName,
+          city: dto.city,
+          state: dto.state,
         })
         .returning();
 
@@ -249,6 +280,87 @@ export class PixTransactionService {
         receiver: receiverNotification,
       },
       fraudEvaluation,
+    };
+  }
+
+  async registerLocation(
+    transactionId: string,
+    dto: RegisterTransactionLocationDto,
+  ) {
+    if (
+      dto.latitude === undefined &&
+      dto.longitude === undefined &&
+      dto.locationName === undefined &&
+      dto.city === undefined &&
+      dto.state === undefined
+    ) {
+      throw new BadRequestException(
+        'Informe ao menos um dado de localização (latitude, longitude, locationName, city ou state)',
+      );
+    }
+
+    this.validateCoordinates(dto.latitude, dto.longitude);
+
+    const [transaction] = await this.db
+      .select()
+      .from(pixTransactions)
+      .where(eq(pixTransactions.id, transactionId));
+
+    if (!transaction) {
+      throw new NotFoundException('Transação não encontrada');
+    }
+
+    const updatePayload: Partial<typeof pixTransactions.$inferInsert> = {};
+
+    if (dto.latitude !== undefined) {
+      updatePayload.latitude = dto.latitude.toString();
+    }
+
+    if (dto.longitude !== undefined) {
+      updatePayload.longitude = dto.longitude.toString();
+    }
+
+    if (dto.locationName !== undefined) {
+      updatePayload.locationName = dto.locationName;
+    }
+
+    if (dto.city !== undefined) {
+      updatePayload.city = dto.city;
+    }
+
+    if (dto.state !== undefined) {
+      updatePayload.state = dto.state;
+    }
+
+    const [updated] = await this.db
+      .update(pixTransactions)
+      .set(updatePayload)
+      .where(eq(pixTransactions.id, transactionId))
+      .returning();
+
+    return {
+      message: 'Localização da transação PIX registrada com sucesso',
+      transaction: updated,
+    };
+  }
+
+  async getTransactionLocation(transactionId: string) {
+    const [transaction] = await this.db
+      .select()
+      .from(pixTransactions)
+      .where(eq(pixTransactions.id, transactionId));
+
+    if (!transaction) {
+      throw new NotFoundException('Transação não encontrada');
+    }
+
+    return {
+      transactionId: transaction.id,
+      latitude: transaction.latitude ?? null,
+      longitude: transaction.longitude ?? null,
+      locationName: transaction.locationName ?? null,
+      city: transaction.city ?? null,
+      state: transaction.state ?? null,
     };
   }
 
@@ -296,7 +408,7 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.senderAccountId,
         transaction.id,
-        'CANCELED' as any,
+        'CANCELED' as 'TRANSFER',
         Number(transaction.amount),
         'A sua transação foi cancelada',
       );
@@ -306,7 +418,7 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.receiverAccountId,
         transaction.id,
-        'CANCELED' as any,
+        'CANCELED' as 'RECEIVE',
         Number(transaction.amount),
         'Transação recebida foi cancelada',
       );
@@ -371,7 +483,9 @@ export class PixTransactionService {
     }
 
     if (account.status !== 'ACTIVE') {
-      throw new BadRequestException('Conta do remetente está bloqueada ou inativa');
+      throw new BadRequestException(
+        'Conta do remetente está bloqueada ou inativa',
+      );
     }
 
     if (parseFloat(account.balance) < amount) {
@@ -405,7 +519,9 @@ export class PixTransactionService {
     }
 
     if (account.status !== 'ACTIVE') {
-      throw new BadRequestException('Conta do destinatário está bloqueada ou inativa');
+      throw new BadRequestException(
+        'Conta do destinatário está bloqueada ou inativa',
+      );
     }
 
     return account;
