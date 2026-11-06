@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-call, @typescript-eslint/require-await */
 import { Test, TestingModule } from '@nestjs/testing';
 import { PixTransactionService } from './pix-transaction.service';
 import { NotificationService } from '../../notification/notification.service';
@@ -232,7 +233,9 @@ describe('PixTransactionService (BDD Scenarios)', () => {
   // Cenário 6 — Filtrar transações por intervalo de datas válido
   // =====================================================================
   it('Cenário 6: Filtrar transações informando um intervalo de datas válido', async () => {
-    const mockTx = [{ id: 'tx-1', createdAt: new Date('2026-01-05T10:00:00Z') }];
+    const mockTx = [
+      { id: 'tx-1', createdAt: new Date('2026-01-05T10:00:00Z') },
+    ];
 
     enqueue(mockTx);
 
@@ -274,6 +277,88 @@ describe('PixTransactionService (BDD Scenarios)', () => {
         endDate: '2026-01-05T23:59:59Z',
       }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  // =====================================================================
+  // Limite Diário de Transações
+  // =====================================================================
+  describe('Limite Diário de Transações (Daily Limit)', () => {
+    it('rejeita transferência cujo valor único excede o limite diário da conta', async () => {
+      const senderAccount = {
+        id: 'acc-A',
+        balance: '5000.00',
+        dailyLimit: '1000.00',
+        status: 'ACTIVE',
+      };
+
+      enqueue([senderAccount]);
+
+      await expect(
+        service.transfer('acc-A', { pixKey: 'chave-b', amount: 1500 }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(dbMock.transaction).not.toHaveBeenCalled();
+    });
+
+    it('rejeita transferência quando a soma das transferências do dia ultrapassa o limite diário', async () => {
+      const senderAccount = {
+        id: 'acc-A',
+        balance: '5000.00',
+        dailyLimit: '1000.00',
+        status: 'ACTIVE',
+      };
+      const todayTransactions = [
+        { id: 'tx-prev-1', amount: '600.00', status: 'COMPLETED' },
+        { id: 'tx-prev-2', amount: '200.00', status: 'COMPLETED' },
+      ];
+
+      // 1ª select: senderAccount, 2ª select: todayTransactions
+      enqueue([senderAccount], todayTransactions);
+
+      await expect(
+        service.transfer('acc-A', { pixKey: 'chave-b', amount: 300 }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(dbMock.transaction).not.toHaveBeenCalled();
+    });
+
+    it('permite transferência quando o acumulado do dia está dentro do limite diário', async () => {
+      const senderAccount = {
+        id: 'acc-A',
+        balance: '5000.00',
+        dailyLimit: '1000.00',
+        status: 'ACTIVE',
+      };
+      const todayTransactions = [
+        { id: 'tx-prev-1', amount: '600.00', status: 'COMPLETED' },
+      ];
+      const pixKey = { id: 'key-1', bankAccountId: 'acc-B', key: 'chave-b' };
+      const receiverAccount = {
+        id: 'acc-B',
+        balance: '50.00',
+        status: 'ACTIVE',
+      };
+      const insertedTx = { id: 'tx-ok' };
+
+      enqueue([senderAccount], todayTransactions, [pixKey], [receiverAccount]);
+
+      const mockTx = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockResolvedValue([]),
+        insert: jest.fn().mockReturnThis(),
+        values: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockResolvedValue([insertedTx]),
+      };
+      dbMock.transaction.mockImplementation(async (cb: any) => cb(mockTx));
+
+      const result = await service.transfer('acc-A', {
+        pixKey: 'chave-b',
+        amount: 400,
+      });
+
+      expect(result.transaction).toEqual(insertedTx);
+    });
   });
 
   // =====================================================================
@@ -423,9 +508,9 @@ describe('PixTransactionService (BDD Scenarios)', () => {
       const result = await service.getHistory('acc-A', {});
 
       expect(result.count).toBe(3);
-      expect(result.transactions.find((t) => t.id === 'tx-sent')?.direction).toBe(
-        'SENT',
-      );
+      expect(
+        result.transactions.find((t) => t.id === 'tx-sent')?.direction,
+      ).toBe('SENT');
       expect(
         result.transactions.find((t) => t.id === 'tx-received')?.direction,
       ).toBe('RECEIVED');
