@@ -1,7 +1,8 @@
 import { ContaBancaria } from './ContaBancaria';
 
 export type TipoTransacao = 'PIX_ENVIO' | 'PIX_RECEBIMENTO' | 'ESTORNO';
-export type StatusTransacao = 'PENDENTE' | 'CONCLUIDA' | 'CANCELADA';
+export type StatusTransacao =
+  'PENDENTE' | 'CONCLUIDA' | 'CANCELADA' | 'ESTORNADA';
 
 export class Transacao {
   id: number | null;
@@ -28,5 +29,15 @@ export class Transacao {
     this.contaDestino = contaDestino;
     this.status = 'PENDENTE';
     this.descricao = descricao;
+  }
+
+  estornar(motivo?: string): void {
+    if (this.status !== 'CONCLUIDA') {
+      throw new Error('Apenas transações concluídas podem ser estornadas');
+    }
+    this.status = 'ESTORNADA';
+    if (motivo) {
+      this.descricao = `Estorno: ${motivo}`;
+    }
   }
 }
