@@ -10,6 +10,8 @@ import { BankAccountModule } from '../bank-account/bank-account.module';
 import { FraudDetectionService } from './fraud/fraud-detection.service';
 import { ReportsController } from './reports/reports.controller';
 import { ReportsService } from './reports/reports.service';
+import { PixContactController } from './contacts/pix-contact.controller';
+import { PixContactService } from './contacts/pix-contact.service';
 
 @Module({
   imports: [NotificationModule, BankAccountModule],
@@ -18,6 +20,7 @@ import { ReportsService } from './reports/reports.service';
     PixKeyController,
     PixTransactionController,
     ReportsController,
+    PixContactController,
   ],
   providers: [
     PixService,
@@ -25,7 +28,8 @@ import { ReportsService } from './reports/reports.service';
     PixTransactionService,
     FraudDetectionService,
     ReportsService,
+    PixContactService,
   ],
-  exports: [PixService, ReportsService],
+  exports: [PixService, ReportsService, PixContactService],
 })
 export class PixModule {}
