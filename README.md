@@ -24,6 +24,7 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 ### 🏦 Contas Bancárias
 - ✅ Criar conta bancária para um usuário (número, agência)
 - ✅ Buscar conta por ID
+- ✅ Definir e consultar limite de transações diárias da conta (`dailyLimit`)
 - ✅ Atualizar dados da conta (limite diário, bloqueio, etc.)
 - ✅ Remover conta bancária (remove também as chaves Pix associadas)
 
@@ -37,6 +38,5 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 - ✅ Remover chave Pix associada à conta
 
 ### 💸 Transferências (Pix)
-- ✅ Transferir valor entre contas usando chave Pix (envio)
+- ✅ Transferir valor entre contas usando chave Pix (envio com validação de limite diário)
 - ✅ Receber valor em conta usando chave Pix (recebimento)
-

@@ -86,6 +86,19 @@ GET {{baseUrl}}/bank-accounts/user/{{userId}}
 
 GET {{baseUrl}}/bank-accounts/{{bankAccountId}}/balance
 
+### Consultar limite diário de transações
+
+GET {{baseUrl}}/bank-accounts/{{bankAccountId}}/daily-limit
+
+### Definir limite diário de transações
+
+PATCH {{baseUrl}}/bank-accounts/{{bankAccountId}}/daily-limit
+Content-Type: application/json
+
+{
+  "dailyLimit": 2500.00
+}
+
 ### Fazer depósito
 
 PATCH {{baseUrl}}/bank-accounts/{{bankAccountId}}/balance

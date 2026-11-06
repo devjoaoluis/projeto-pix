@@ -57,6 +57,20 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 - **Método**: `GET`
 - **Rota**: `/bank-accounts/:id/balance`
 
+### Consultar Limite Diário de Transações
+- **Método**: `GET`
+- **Rota**: `/bank-accounts/:id/daily-limit`
+
+### Definir Limite Diário de Transações
+- **Método**: `PATCH`
+- **Rota**: `/bank-accounts/:id/daily-limit`
+- **Body** (JSON):
+```json
+{
+  "dailyLimit": 2500.00
+}
+```
+
 ### Atualizar Saldo (Depósito Manual)
 - **Método**: `PATCH`
 - **Rota**: `/bank-accounts/:id/balance`
