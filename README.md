@@ -38,5 +38,5 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 
 ### 💸 Transferências (Pix)
 - ✅ Transferir valor entre contas usando chave Pix (envio)
+- ✅ Realizar Pix Agendado (agendamento para data futura, listagem e execução do agendamento)
 - ✅ Receber valor em conta usando chave Pix (recebimento)
-

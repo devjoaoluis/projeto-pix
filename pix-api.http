@@ -217,6 +217,26 @@ Content-Type: application/json
 "idempotencyKey": "11117111-1111-1111-1111-111111111111"
 }
 
+### Realizar Pix Agendado
+
+POST {{baseUrl}}/pix/transactions/{{bankAccountId}}/schedule
+Content-Type: application/json
+
+{
+  "pixKey": "luis@gmail.com",
+  "amount": 150.00,
+  "scheduledFor": "2027-01-15T10:00:00Z",
+  "description": "Pagamento agendado do aluguel"
+}
+
+### Listar Pix agendados da conta
+
+GET {{baseUrl}}/pix/transactions/account/{{bankAccountId}}/scheduled
+
+### Executar Pix agendado
+
+PATCH {{baseUrl}}/pix/transactions/{{transactionId}}/execute-scheduled
+
 ### Realizar segunda transferência
 
 POST {{baseUrl}}/pix/transactions/{{bankAccountId}}/transfer

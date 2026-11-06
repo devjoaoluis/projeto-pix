@@ -169,6 +169,27 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 }
 ```
 
+### Realizar Pix Agendado
+- **Método**: `POST`
+- **Rota**: `/pix/transactions/:senderAccountId/schedule`
+- **Body** (JSON):
+```json
+{
+  "pixKey": "maria@email.com",
+  "amount": 250.00,
+  "scheduledFor": "2027-01-15T10:00:00Z",
+  "description": "Pagamento agendado do aluguel"
+}
+```
+
+### Listar Pix Agendados da Conta
+- **Método**: `GET`
+- **Rota**: `/pix/transactions/account/:bankAccountId/scheduled`
+
+### Executar / Efetivar Pix Agendado
+- **Método**: `PATCH` ou `POST`
+- **Rota**: `/pix/transactions/:id/execute-scheduled`
+
 ### Receber Pix via Webhook (Simulação Externa)
 - **Método**: `POST`
 - **Rota**: `/pix/transactions/webhook`
