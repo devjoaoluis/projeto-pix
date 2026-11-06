@@ -12,6 +12,9 @@ export class Transacao {
   contaDestino: ContaBancaria;
   status: StatusTransacao;
   descricao: string;
+  latitude?: number;
+  longitude?: number;
+  localizacao?: string;
 
   constructor(
     valor: number,
@@ -28,5 +31,21 @@ export class Transacao {
     this.contaDestino = contaDestino;
     this.status = 'PENDENTE';
     this.descricao = descricao;
+  }
+
+  registrarLocalizacao(
+    latitude: number,
+    longitude: number,
+    localizacao?: string,
+  ): void {
+    if (latitude < -90 || latitude > 90) {
+      throw new Error('Latitude inválida');
+    }
+    if (longitude < -180 || longitude > 180) {
+      throw new Error('Longitude inválida');
+    }
+    this.latitude = latitude;
+    this.longitude = longitude;
+    this.localizacao = localizacao;
   }
 }
