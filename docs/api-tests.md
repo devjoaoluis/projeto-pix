@@ -248,3 +248,20 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 ### Listar Notificações de uma Conta Específica
 - **Método**: `GET`
 - **Rota**: `/notifications/:accountId`
+
+### Consultar Preferências de Notificação (SMS / Email)
+- **Método**: `GET`
+- **Rota**: `/notifications/:accountId/preferences`
+
+### Habilitar / Configurar Notificação por SMS ou Email
+- **Método**: `PATCH`
+- **Rota**: `/notifications/:accountId/preferences`
+- **Body** (JSON):
+```json
+{
+  "smsEnabled": true,
+  "emailEnabled": true,
+  "phone": "11999999999",
+  "email": "joao@email.com"
+}
+```

@@ -40,3 +40,6 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 - ✅ Transferir valor entre contas usando chave Pix (envio)
 - ✅ Receber valor em conta usando chave Pix (recebimento)
 
+### 🔔 Notificações
+- ✅ Habilitar e configurar notificações por SMS e/ou Email por conta
+- ✅ Listar notificações de transações enviadas e recebidas
