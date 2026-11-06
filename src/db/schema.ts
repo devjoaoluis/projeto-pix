@@ -28,9 +28,10 @@ export const bankAccounts = pgTable(
     balance: numeric('balance', { precision: 15, scale: 2 })
       .default('0')
       .notNull(),
-    status: varchar('status', { length: 20 })
-      .default('ACTIVE')
+    dailyLimit: numeric('daily_limit', { precision: 15, scale: 2 })
+      .default('10000.00')
       .notNull(),
+    status: varchar('status', { length: 20 }).default('ACTIVE').notNull(),
     blockedReason: varchar('blocked_reason', { length: 255 }),
     blockedAt: timestamp('blocked_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -48,9 +49,7 @@ export const pixKeys = pgTable(
       .references(() => bankAccounts.id),
     key: varchar('key', { length: 255 }).notNull(),
     type: varchar('type', { length: 20 }).notNull(),
-    status: varchar('status', { length: 20 })
-      .default('ACTIVE')
-      .notNull(),
+    status: varchar('status', { length: 20 }).default('ACTIVE').notNull(),
     suspendedReason: varchar('suspended_reason', { length: 255 }),
     suspendedAt: timestamp('suspended_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),

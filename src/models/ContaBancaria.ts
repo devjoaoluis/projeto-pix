@@ -21,8 +21,13 @@ export class ContaBancaria {
     this.usuario = usuario;
     this.chavesPix = [];
     this.bloqueada = false;
-    this.limiteDiario = 10000.00;
+    this.limiteDiario = 10000.0;
   }
 
-  // Métodos serão adicionados depois
+  definirLimiteDiario(novoLimite: number): void {
+    if (novoLimite < 0) {
+      throw new Error('O limite diário não pode ser negativo');
+    }
+    this.limiteDiario = novoLimite;
+  }
 }
