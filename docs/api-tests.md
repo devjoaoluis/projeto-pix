@@ -248,3 +248,42 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 ### Listar Notificações de uma Conta Específica
 - **Método**: `GET`
 - **Rota**: `/notifications/:accountId`
+
+---
+
+## 8. Contatos Pix (`/pix/contacts`)
+
+### Adicionar Contato Integrado com Chave Pix
+- **Método**: `POST`
+- **Rota**: `/pix/contacts/user/:userId`
+- **Body** (JSON):
+```json
+{
+  "name": "Maria Oliveira",
+  "nickname": "Maria",
+  "email": "maria@email.com",
+  "phone": "11988887777"
+}
+```
+
+### Listar Contatos do Usuário
+- **Método**: `GET`
+- **Rota**: `/pix/contacts/user/:userId`
+
+### Sincronizar Contatos da Agenda com Chaves Pix Ativas
+- **Método**: `POST`
+- **Rota**: `/pix/contacts/user/:userId/sync`
+- **Body** (JSON):
+```json
+{
+  "identifiers": ["maria@email.com", "11988887777", "12345678901"]
+}
+```
+
+### Atualizar Contato
+- **Método**: `PATCH`
+- **Rota**: `/pix/contacts/user/:userId/:contactId`
+
+### Remover Contato
+- **Método**: `DELETE`
+- **Rota**: `/pix/contacts/user/:userId/:contactId`

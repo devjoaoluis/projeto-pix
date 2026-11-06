@@ -20,6 +20,8 @@
 
 @reportId = COLE_UUID_RELATORIO_AQUI
 
+@contactId = COLE_UUID_CONTATO_AQUI
+
 # ============================================================
 
 # 1. USUÁRIOS
@@ -323,3 +325,37 @@ GET {{baseUrl}}/notifications
 ### Listar notificações da conta
 
 GET {{baseUrl}}/notifications/{{bankAccountId}}
+
+# ============================================================
+
+# 8. CONTATOS PIX
+
+# ============================================================
+
+### Adicionar contato com chave Pix
+
+POST {{baseUrl}}/pix/contacts/user/{{userId}}
+Content-Type: application/json
+
+{
+  "name": "Maria Oliveira",
+  "nickname": "Maria",
+  "email": "luis@gmail.com"
+}
+
+### Listar contatos do usuário
+
+GET {{baseUrl}}/pix/contacts/user/{{userId}}
+
+### Sincronizar agenda de contatos com chaves Pix
+
+POST {{baseUrl}}/pix/contacts/user/{{userId}}/sync
+Content-Type: application/json
+
+{
+  "identifiers": ["luis@gmail.com", "11999999998"]
+}
+
+### Remover contato
+
+DELETE {{baseUrl}}/pix/contacts/user/{{userId}}/{{contactId}}
