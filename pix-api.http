@@ -46,6 +46,37 @@ GET {{baseUrl}}/users
 
 GET {{baseUrl}}/users/{{userId}}
 
+### Registrar login do usuário
+
+POST {{baseUrl}}/users/{{userId}}/login
+Content-Type: application/json
+
+{
+  "ipAddress": "192.168.1.10",
+  "device": "App Mobile iOS",
+  "description": "Login realizado com sucesso"
+}
+
+### Registrar atividade do usuário
+
+POST {{baseUrl}}/users/{{userId}}/activities
+Content-Type: application/json
+
+{
+  "type": "KEY_CHANGE",
+  "description": "Alteração de chave PIX associada",
+  "ipAddress": "192.168.1.10",
+  "device": "Web Browser Chrome"
+}
+
+### Consultar histórico de atividades do usuário
+
+GET {{baseUrl}}/users/{{userId}}/activities
+
+### Consultar histórico de logins do usuário
+
+GET {{baseUrl}}/users/{{userId}}/login-history
+
 # ============================================================
 
 # 2. CONTAS BANCÁRIAS

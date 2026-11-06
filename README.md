@@ -19,6 +19,7 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 - ✅ Cadastrar usuário (nome, CPF, email, telefone)
 - ✅ Buscar usuário por ID
 - ✅ Atualizar dados do usuário (nome, email, telefone)
+- ✅ Consulta de histórico de logins e atividades do usuário (registro e consulta com filtros por tipo e período)
 - ✅ Remover usuário (remove também contas e chaves Pix vinculadas)
 
 ### 🏦 Contas Bancárias
@@ -39,4 +40,3 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 ### 💸 Transferências (Pix)
 - ✅ Transferir valor entre contas usando chave Pix (envio)
 - ✅ Receber valor em conta usando chave Pix (recebimento)
-
