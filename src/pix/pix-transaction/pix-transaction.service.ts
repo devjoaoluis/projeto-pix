@@ -10,6 +10,7 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, sql, or, and, gte, lte, SQL, desc } from 'drizzle-orm';
 import { TransferPixDto } from './dto/transfer-pix.dto';
 import { FilterPixTransactionsDto } from './dto/filter-pix-transactions.dto';
+import { RefundPixDto } from './dto/refund-pix.dto';
 import { bankAccounts, pixKeys, pixTransactions } from '../../db/schema';
 import { NotificationService } from '../../notification/notification.service';
 import { FraudDetectionService } from '../fraud/fraud-detection.service';
@@ -38,7 +39,9 @@ export class PixTransactionService {
   ) {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
-        throw new BadRequestException('endDate não pode ser menor que startDate');
+        throw new BadRequestException(
+          'endDate não pode ser menor que startDate',
+        );
       }
     }
 
@@ -53,11 +56,15 @@ export class PixTransactionService {
     );
 
     if (filterDto.startDate) {
-      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+      conditions.push(
+        gte(pixTransactions.createdAt, new Date(filterDto.startDate)),
+      );
     }
 
     if (filterDto.endDate) {
-      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+      conditions.push(
+        lte(pixTransactions.createdAt, new Date(filterDto.endDate)),
+      );
     }
 
     return this.db
@@ -79,7 +86,9 @@ export class PixTransactionService {
   ): Promise<HistoryResponse> {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
-        throw new BadRequestException('endDate não pode ser menor que startDate');
+        throw new BadRequestException(
+          'endDate não pode ser menor que startDate',
+        );
       }
     }
 
@@ -103,11 +112,15 @@ export class PixTransactionService {
     );
 
     if (filterDto.startDate) {
-      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+      conditions.push(
+        gte(pixTransactions.createdAt, new Date(filterDto.startDate)),
+      );
     }
 
     if (filterDto.endDate) {
-      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+      conditions.push(
+        lte(pixTransactions.createdAt, new Date(filterDto.endDate)),
+      );
     }
 
     const rows = await this.db
@@ -177,9 +190,14 @@ export class PixTransactionService {
   }
 
   async transfer(senderAccountId: string, dto: TransferPixDto) {
-    const senderAccount = await this.getSenderAccount(senderAccountId, dto.amount);
+    const senderAccount = await this.getSenderAccount(
+      senderAccountId,
+      dto.amount,
+    );
     const receiverPixKey = await this.resolvePixKey(dto.pixKey);
-    const receiverAccount = await this.getReceiverAccount(receiverPixKey.bankAccountId);
+    const receiverAccount = await this.getReceiverAccount(
+      receiverPixKey.bankAccountId,
+    );
 
     if (senderAccount.id === receiverAccount.id) {
       throw new BadRequestException('Não é possível transferir para si mesmo');
@@ -252,6 +270,108 @@ export class PixTransactionService {
     };
   }
 
+  async refund(transactionId: string, dto: RefundPixDto = {}) {
+    const [transaction] = await this.db
+      .select()
+      .from(pixTransactions)
+      .where(eq(pixTransactions.id, transactionId));
+
+    if (!transaction) {
+      throw new NotFoundException('Transação não encontrada');
+    }
+
+    if (transaction.status === 'REFUNDED') {
+      throw new BadRequestException('Esta transação já foi estornada');
+    }
+
+    if (transaction.status !== 'COMPLETED') {
+      throw new BadRequestException(
+        'Apenas transações concluídas podem ser estornadas',
+      );
+    }
+
+    const originalAmount = parseFloat(transaction.amount);
+    const refundAmount = dto.amount !== undefined ? dto.amount : originalAmount;
+
+    if (refundAmount <= 0 || refundAmount > originalAmount) {
+      throw new BadRequestException(
+        'O valor do estorno não pode ser maior que o valor original da transação',
+      );
+    }
+
+    if (transaction.receiverAccountId) {
+      const [receiverAccount] = await this.db
+        .select()
+        .from(bankAccounts)
+        .where(eq(bankAccounts.id, transaction.receiverAccountId));
+
+      if (
+        receiverAccount &&
+        parseFloat(receiverAccount.balance) < refundAmount
+      ) {
+        throw new BadRequestException(
+          'A conta recebedora não possui saldo suficiente para realizar o estorno',
+        );
+      }
+    }
+
+    const reasonText = dto.reason?.trim() || 'Estorno de transação indevida';
+
+    const result = await this.db.transaction(async (tx) => {
+      const [refundedTransaction] = await tx
+        .update(pixTransactions)
+        .set({
+          status: 'REFUNDED',
+          description: reasonText,
+        })
+        .where(eq(pixTransactions.id, transactionId))
+        .returning();
+
+      if (transaction.senderAccountId) {
+        await tx
+          .update(bankAccounts)
+          .set({ balance: sql`balance + ${refundAmount}` })
+          .where(eq(bankAccounts.id, transaction.senderAccountId));
+      }
+
+      if (transaction.receiverAccountId) {
+        await tx
+          .update(bankAccounts)
+          .set({ balance: sql`balance - ${refundAmount}` })
+          .where(eq(bankAccounts.id, transaction.receiverAccountId));
+      }
+
+      return refundedTransaction;
+    });
+
+    if (transaction.senderAccountId) {
+      this.notificationService.notify(
+        transaction.senderAccountId,
+        transaction.id,
+        'RECEIVE',
+        refundAmount,
+        `Estorno recebido: ${reasonText}`,
+      );
+    }
+
+    if (transaction.receiverAccountId) {
+      this.notificationService.notify(
+        transaction.receiverAccountId,
+        transaction.id,
+        'TRANSFER',
+        refundAmount,
+        `Valor estornado: ${reasonText}`,
+      );
+    }
+
+    return {
+      message: 'Estorno de transação realizado com sucesso',
+      refundAmount,
+      reason: reasonText,
+      transaction: result,
+    };
+  }
+
   async cancel(transactionId: string) {
     const [transaction] = await this.db
       .select()
@@ -296,7 +416,7 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.senderAccountId,
         transaction.id,
-        'CANCELED' as any,
+        'CANCELED' as 'TRANSFER',
         Number(transaction.amount),
         'A sua transação foi cancelada',
       );
@@ -306,7 +426,7 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.receiverAccountId,
         transaction.id,
-        'CANCELED' as any,
+        'CANCELED' as 'RECEIVE',
         Number(transaction.amount),
         'Transação recebida foi cancelada',
       );
@@ -371,7 +491,9 @@ export class PixTransactionService {
     }
 
     if (account.status !== 'ACTIVE') {
-      throw new BadRequestException('Conta do remetente está bloqueada ou inativa');
+      throw new BadRequestException(
+        'Conta do remetente está bloqueada ou inativa',
+      );
     }
 
     if (parseFloat(account.balance) < amount) {
@@ -405,7 +527,9 @@ export class PixTransactionService {
     }
 
     if (account.status !== 'ACTIVE') {
-      throw new BadRequestException('Conta do destinatário está bloqueada ou inativa');
+      throw new BadRequestException(
+        'Conta do destinatário está bloqueada ou inativa',
+      );
     }
 
     return account;

@@ -11,6 +11,7 @@ import { PixTransactionService } from './pix-transaction.service';
 import { TransferPixDto } from './dto/transfer-pix.dto';
 import { ReceivePixDto } from './dto/receive-pix.dto';
 import { FilterPixTransactionsDto } from './dto/filter-pix-transactions.dto';
+import { RefundPixDto } from './dto/refund-pix.dto';
 
 @Controller('pix/transactions')
 export class PixTransactionController {
@@ -51,6 +52,16 @@ export class PixTransactionController {
   @Post('webhook')
   receiveWebhook(@Body() dto: ReceivePixDto) {
     return this.pixTransactionService.receiveWebhook(dto);
+  }
+
+  @Post(':id/refund')
+  refundPost(@Param('id') id: string, @Body() dto?: RefundPixDto) {
+    return this.pixTransactionService.refund(id, dto);
+  }
+
+  @Patch(':id/refund')
+  refund(@Param('id') id: string, @Body() dto?: RefundPixDto) {
+    return this.pixTransactionService.refund(id, dto);
   }
 
   @Patch(':id/cancel')
