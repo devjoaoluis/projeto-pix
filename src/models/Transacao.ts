@@ -1,7 +1,8 @@
 import { ContaBancaria } from './ContaBancaria';
 
 export type TipoTransacao = 'PIX_ENVIO' | 'PIX_RECEBIMENTO' | 'ESTORNO';
-export type StatusTransacao = 'PENDENTE' | 'CONCLUIDA' | 'CANCELADA';
+export type StatusTransacao =
+  'PENDENTE' | 'AGENDADA' | 'CONCLUIDA' | 'CANCELADA';
 
 export class Transacao {
   id: number | null;
@@ -12,6 +13,7 @@ export class Transacao {
   contaDestino: ContaBancaria;
   status: StatusTransacao;
   descricao: string;
+  agendadaPara?: Date;
 
   constructor(
     valor: number,
@@ -28,5 +30,13 @@ export class Transacao {
     this.contaDestino = contaDestino;
     this.status = 'PENDENTE';
     this.descricao = descricao;
+  }
+
+  agendar(dataAgendamento: Date): void {
+    if (dataAgendamento <= new Date()) {
+      throw new Error('A data de agendamento deve ser futura');
+    }
+    this.agendadaPara = dataAgendamento;
+    this.status = 'AGENDADA';
   }
 }
