@@ -165,9 +165,32 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
   "pixKey": "maria@email.com",
   "amount": 100.50,
   "description": "Pagamento do almoço",
-  "idempotencyKey": "chave-unica-opcional-uuid"
+  "idempotencyKey": "chave-unica-opcional-uuid",
+  "latitude": -23.55052,
+  "longitude": -46.633308,
+  "locationName": "Av. Paulista, 1000",
+  "city": "São Paulo",
+  "state": "SP"
 }
 ```
+
+### Registrar Localização de uma Transação Pix
+- **Método**: `PATCH` ou `POST`
+- **Rota**: `/pix/transactions/:id/location`
+- **Body** (JSON):
+```json
+{
+  "latitude": -23.55052,
+  "longitude": -46.633308,
+  "locationName": "Av. Paulista, 1000",
+  "city": "São Paulo",
+  "state": "SP"
+}
+```
+
+### Consultar Localização de uma Transação Pix
+- **Método**: `GET`
+- **Rota**: `/pix/transactions/:id/location`
 
 ### Receber Pix via Webhook (Simulação Externa)
 - **Método**: `POST`

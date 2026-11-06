@@ -39,4 +39,4 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 ### 💸 Transferências (Pix)
 - ✅ Transferir valor entre contas usando chave Pix (envio)
 - ✅ Receber valor em conta usando chave Pix (recebimento)
-
+- ✅ Registrar e consultar localização geográfica de transações Pix (latitude, longitude, endereço, cidade e estado)

@@ -229,6 +229,23 @@ Content-Type: application/json
 "idempotencyKey": "22222222-2222-2222-2222-222222222222"
 }
 
+### Registrar localização de uma transação Pix
+
+PATCH {{baseUrl}}/pix/transactions/{{transactionId}}/location
+Content-Type: application/json
+
+{
+  "latitude": -23.55052,
+  "longitude": -46.633308,
+  "locationName": "Av. Paulista, 1000",
+  "city": "São Paulo",
+  "state": "SP"
+}
+
+### Consultar localização de uma transação Pix
+
+GET {{baseUrl}}/pix/transactions/{{transactionId}}/location
+
 ### Receber Pix via webhook
 
 POST {{baseUrl}}/pix/transactions/webhook
