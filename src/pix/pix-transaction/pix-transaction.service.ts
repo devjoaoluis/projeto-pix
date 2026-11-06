@@ -38,7 +38,9 @@ export class PixTransactionService {
   ) {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
-        throw new BadRequestException('endDate não pode ser menor que startDate');
+        throw new BadRequestException(
+          'endDate não pode ser menor que startDate',
+        );
       }
     }
 
@@ -53,11 +55,15 @@ export class PixTransactionService {
     );
 
     if (filterDto.startDate) {
-      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+      conditions.push(
+        gte(pixTransactions.createdAt, new Date(filterDto.startDate)),
+      );
     }
 
     if (filterDto.endDate) {
-      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+      conditions.push(
+        lte(pixTransactions.createdAt, new Date(filterDto.endDate)),
+      );
     }
 
     return this.db
@@ -79,7 +85,9 @@ export class PixTransactionService {
   ): Promise<HistoryResponse> {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
-        throw new BadRequestException('endDate não pode ser menor que startDate');
+        throw new BadRequestException(
+          'endDate não pode ser menor que startDate',
+        );
       }
     }
 
@@ -103,11 +111,15 @@ export class PixTransactionService {
     );
 
     if (filterDto.startDate) {
-      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+      conditions.push(
+        gte(pixTransactions.createdAt, new Date(filterDto.startDate)),
+      );
     }
 
     if (filterDto.endDate) {
-      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+      conditions.push(
+        lte(pixTransactions.createdAt, new Date(filterDto.endDate)),
+      );
     }
 
     const rows = await this.db
@@ -177,9 +189,16 @@ export class PixTransactionService {
   }
 
   async transfer(senderAccountId: string, dto: TransferPixDto) {
-    const senderAccount = await this.getSenderAccount(senderAccountId, dto.amount);
+    const senderAccount = await this.getSenderAccount(
+      senderAccountId,
+      dto.amount,
+    );
+    await this.validateDailyLimit(senderAccount, dto.amount);
+
     const receiverPixKey = await this.resolvePixKey(dto.pixKey);
-    const receiverAccount = await this.getReceiverAccount(receiverPixKey.bankAccountId);
+    const receiverAccount = await this.getReceiverAccount(
+      receiverPixKey.bankAccountId,
+    );
 
     if (senderAccount.id === receiverAccount.id) {
       throw new BadRequestException('Não é possível transferir para si mesmo');
@@ -296,7 +315,7 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.senderAccountId,
         transaction.id,
-        'CANCELED' as any,
+        'CANCELED' as 'TRANSFER',
         Number(transaction.amount),
         'A sua transação foi cancelada',
       );
@@ -306,7 +325,7 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.receiverAccountId,
         transaction.id,
-        'CANCELED' as any,
+        'CANCELED' as 'RECEIVE',
         Number(transaction.amount),
         'Transação recebida foi cancelada',
       );
@@ -360,6 +379,50 @@ export class PixTransactionService {
     };
   }
 
+  private async validateDailyLimit(
+    senderAccount: typeof bankAccounts.$inferSelect,
+    amount: number,
+  ) {
+    if (
+      senderAccount.dailyLimit === undefined ||
+      senderAccount.dailyLimit === null
+    ) {
+      return;
+    }
+
+    const limit = parseFloat(senderAccount.dailyLimit);
+    if (amount > limit) {
+      throw new BadRequestException(
+        `Valor da transação excede o limite diário permitido de R$ ${limit.toFixed(2)}`,
+      );
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const todayTransactions = await this.db
+      .select()
+      .from(pixTransactions)
+      .where(
+        and(
+          eq(pixTransactions.senderAccountId, senderAccount.id),
+          eq(pixTransactions.status, 'COMPLETED'),
+          gte(pixTransactions.createdAt, startOfDay),
+        ),
+      );
+
+    const totalTransferredToday = todayTransactions.reduce(
+      (sum, tx) => sum + parseFloat(tx.amount),
+      0,
+    );
+
+    if (totalTransferredToday + amount > limit) {
+      throw new BadRequestException(
+        `Limite diário de transações excedido. Disponível hoje: R$ ${Math.max(0, limit - totalTransferredToday).toFixed(2)}`,
+      );
+    }
+  }
+
   private async getSenderAccount(accountId: string, amount: number) {
     const [account] = await this.db
       .select()
@@ -371,7 +434,9 @@ export class PixTransactionService {
     }
 
     if (account.status !== 'ACTIVE') {
-      throw new BadRequestException('Conta do remetente está bloqueada ou inativa');
+      throw new BadRequestException(
+        'Conta do remetente está bloqueada ou inativa',
+      );
     }
 
     if (parseFloat(account.balance) < amount) {
@@ -405,7 +470,9 @@ export class PixTransactionService {
     }
 
     if (account.status !== 'ACTIVE') {
-      throw new BadRequestException('Conta do destinatário está bloqueada ou inativa');
+      throw new BadRequestException(
+        'Conta do destinatário está bloqueada ou inativa',
+      );
     }
 
     return account;

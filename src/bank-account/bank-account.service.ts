@@ -41,6 +41,7 @@ export class BankAccountService {
       .values({
         userId: dto.userId,
         balance: '0',
+        dailyLimit: '10000.00',
         status: BankAccountStatus.ACTIVE,
       })
       .returning();
@@ -89,6 +90,34 @@ export class BankAccountService {
     };
   }
 
+  async getDailyLimit(id: string) {
+    const bankAccount = await this.findById(id);
+
+    return {
+      bankAccountId: bankAccount.id,
+      dailyLimit: bankAccount.dailyLimit ?? '10000.00',
+    };
+  }
+
+  async updateDailyLimit(id: string, dailyLimit: number) {
+    if (dailyLimit < 0) {
+      throw new BadRequestException('O limite diário não pode ser negativo');
+    }
+
+    await this.findById(id);
+
+    const [updatedAccount] = await this.db
+      .update(bankAccounts)
+      .set({
+        dailyLimit: dailyLimit.toFixed(2),
+        updatedAt: new Date(),
+      })
+      .where(eq(bankAccounts.id, id))
+      .returning();
+
+    return updatedAccount;
+  }
+
   async block(id: string) {
     await this.findById(id);
 
@@ -107,11 +136,12 @@ export class BankAccountService {
   }
 
   async blockForFraud(id: string, dto: BlockForFraudDto = {}) {
+    void dto;
     const account = await this.findById(id);
 
     if (
-      account.status === BankAccountStatus.BLOCKED &&
-      account.blockedReason === BankAccountBlockReason.SUSPECTED_FRAUD
+      account.status === 'BLOCKED' &&
+      account.blockedReason === 'SUSPECTED_FRAUD'
     ) {
       throw new ConflictException(
         'Conta já está bloqueada por suspeita de fraude',
@@ -136,8 +166,8 @@ export class BankAccountService {
     const account = await this.findById(id);
 
     if (
-      account.status === BankAccountStatus.BLOCKED &&
-      account.blockedReason === BankAccountBlockReason.SUSPECTED_FRAUD
+      account.status === 'BLOCKED' &&
+      account.blockedReason === 'SUSPECTED_FRAUD'
     ) {
       throw new BadRequestException(
         'Conta bloqueada por suspeita de fraude não pode ser reativada sem revisão',
@@ -158,7 +188,7 @@ export class BankAccountService {
     return bankAccount;
   }
 
-  //Atualiza somente dados cadastrais
+  // Atualiza somente dados cadastrais
   async update(id: string, dto: UpdateBankAccountDto) {
     await this.findById(id);
 
@@ -166,12 +196,28 @@ export class BankAccountService {
       return this.findById(id);
     }
 
+    const updatePayload: Partial<typeof bankAccounts.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+
+    if (dto.userId !== undefined) {
+      updatePayload.userId = dto.userId;
+    }
+
+    if (dto.status !== undefined) {
+      updatePayload.status = dto.status;
+    }
+
+    if (dto.dailyLimit !== undefined) {
+      if (dto.dailyLimit < 0) {
+        throw new BadRequestException('O limite diário não pode ser negativo');
+      }
+      updatePayload.dailyLimit = dto.dailyLimit.toFixed(2);
+    }
+
     const [bankAccount] = await this.db
       .update(bankAccounts)
-      .set({
-        ...dto,
-        updatedAt: new Date(),
-      })
+      .set(updatePayload)
       .where(eq(bankAccounts.id, id))
       .returning();
 
@@ -186,7 +232,7 @@ export class BankAccountService {
     return { message: `Conta bancária ${id} removida com sucesso` };
   }
 
-  //Atualiza saldo da conta
+  // Atualiza saldo da conta
   async updateBalance(id: string, amount: number) {
     const bankAccount = await this.findById(id);
 

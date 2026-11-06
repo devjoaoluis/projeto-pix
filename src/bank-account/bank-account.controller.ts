@@ -12,8 +12,8 @@ import { BankAccountService } from './bank-account.service';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 import { BlockForFraudDto } from './dto/block-for-fraud.dto';
-
 import { UpdateBalanceDto } from './dto/update-balance.dto';
+import { UpdateDailyLimitDto } from './dto/update-daily-limit.dto';
 
 @Controller('bank-accounts')
 export class BankAccountController {
@@ -42,6 +42,16 @@ export class BankAccountController {
   @Get(':id/balance')
   getBalance(@Param('id') id: string) {
     return this.bankAccountService.getBalance(id);
+  }
+
+  @Get(':id/daily-limit')
+  getDailyLimit(@Param('id') id: string) {
+    return this.bankAccountService.getDailyLimit(id);
+  }
+
+  @Patch(':id/daily-limit')
+  updateDailyLimit(@Param('id') id: string, @Body() dto: UpdateDailyLimitDto) {
+    return this.bankAccountService.updateDailyLimit(id, dto.dailyLimit);
   }
 
   @Patch(':id/block')
