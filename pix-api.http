@@ -245,6 +245,15 @@ Content-Type: application/json
 
 GET {{baseUrl}}/pix/transactions
 
+### Estornar transação Pix indevida
+
+PATCH {{baseUrl}}/pix/transactions/{{transactionId}}/refund
+Content-Type: application/json
+
+{
+  "reason": "Transferência realizada por engano / transação indevida"
+}
+
 ### Cancelar transação
 
 PATCH {{baseUrl}}/pix/transactions/{{transactionId}}/cancel

@@ -182,6 +182,17 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 }
 ```
 
+### Estornar Transação Pix Indevida
+- **Método**: `PATCH` ou `POST`
+- **Rota**: `/pix/transactions/:id/refund`
+- **Body** (JSON opcional):
+```json
+{
+  "reason": "Transferência realizada por engano / transação indevida",
+  "amount": 100.50
+}
+```
+
 ### Cancelar Transação Pix
 - **Método**: `PATCH`
 - **Rota**: `/pix/transactions/:id/cancel`
