@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 
 describe('NotificationService', () => {
@@ -29,6 +30,7 @@ describe('NotificationService', () => {
     expect(result.transactionId).toBe('tx-abc');
     expect(result.type).toBe('RECEIVE');
     expect(result.amount).toBe(100);
+    expect(result.channels).toEqual(['IN_APP']);
     expect(result.message).toContain('Você recebeu um PIX de R$ 100,00');
 
     // Verifica se ficou armazenado
@@ -81,5 +83,57 @@ describe('NotificationService', () => {
 
     const all = service.getAll();
     expect(all).toHaveLength(3);
+  });
+
+  describe('SMS and Email Notification Preferences', () => {
+    it('should return default preferences with SMS and Email disabled', () => {
+      const prefs = service.getPreferences('acc-new');
+      expect(prefs.accountId).toBe('acc-new');
+      expect(prefs.smsEnabled).toBe(false);
+      expect(prefs.emailEnabled).toBe(false);
+    });
+
+    it('should enable SMS and Email notifications via updatePreferences', () => {
+      const updated = service.updatePreferences('acc-1', {
+        smsEnabled: true,
+        emailEnabled: true,
+        phone: '11999999999',
+        email: 'cliente@email.com',
+      });
+
+      expect(updated.smsEnabled).toBe(true);
+      expect(updated.emailEnabled).toBe(true);
+      expect(updated.phone).toBe('11999999999');
+      expect(updated.email).toBe('cliente@email.com');
+
+      const notification = service.notify('acc-1', 'tx-10', 'RECEIVE', 250);
+      expect(notification.channels).toEqual(['IN_APP', 'SMS', 'EMAIL']);
+    });
+
+    it('should enable channels using channels array in updatePreferences', () => {
+      const updated = service.updatePreferences('acc-2', {
+        channels: ['EMAIL'],
+      });
+
+      expect(updated.smsEnabled).toBe(false);
+      expect(updated.emailEnabled).toBe(true);
+
+      const notification = service.notify('acc-2', 'tx-20', 'TRANSFER', 75);
+      expect(notification.channels).toEqual(['IN_APP', 'EMAIL']);
+    });
+
+    it('should enable and disable specific channels via helper methods', () => {
+      service.enableChannel('acc-3', 'SMS', '11988887777');
+      expect(service.getPreferences('acc-3').smsEnabled).toBe(true);
+
+      service.disableChannel('acc-3', 'SMS');
+      expect(service.getPreferences('acc-3').smsEnabled).toBe(false);
+    });
+
+    it('should throw BadRequestException when updatePreferences receives empty payload', () => {
+      expect(() => service.updatePreferences('acc-1', {})).toThrow(
+        BadRequestException,
+      );
+    });
   });
 });
