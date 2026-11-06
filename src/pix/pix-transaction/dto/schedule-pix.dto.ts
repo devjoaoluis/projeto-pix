@@ -27,3 +27,4 @@ export class SchedulePixDto {
   @IsString()
   idempotencyKey?: string;
 }
+
