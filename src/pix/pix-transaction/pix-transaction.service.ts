@@ -266,7 +266,7 @@ export class PixTransactionService {
       throw new BadRequestException('Saldo insuficiente');
     }
 
-    if (account.dailyLimit !== null && account.dailyLimit !== undefined) {
+    if (account.dailyLimit != null) {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
 
