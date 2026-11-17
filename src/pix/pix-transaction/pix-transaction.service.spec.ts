@@ -252,6 +252,18 @@ describe('PixTransactionService (BDD Scenarios)', () => {
     });
   });
 
+  it('Cenário 15: Limite diário não é negado por erro de arredondamento', async () => {
+    // 0.1 + 0.2 em float dá 0.30000000000000004, que passaria de 0.30
+    dbMock.where
+      .mockResolvedValueOnce([{ id: 'acc-A', balance: '500.00', status: 'ACTIVE', dailyLimit: '0.30' }])
+      .mockResolvedValueOnce([{ total: '0.10' }])
+      .mockResolvedValueOnce([]); // chave não encontrada: prova que passou do limite
+
+    await expect(
+      service.transfer('acc-A', { pixKey: 'chave-b', amount: 0.2 }),
+    ).rejects.toThrow(NotFoundException);
+  });
+
   describe('cancel (estorno)', () => {
     const completedTx = {
       id: 'tx-1',

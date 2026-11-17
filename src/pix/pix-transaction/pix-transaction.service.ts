@@ -281,7 +281,9 @@ export class PixTransactionService {
           gte(pixTransactions.createdAt, startOfDay),
         ));
 
-      if (Number(total) + amount > Number(account.dailyLimit)) {
+      // Compara em centavos: em float, 0.1 + 0.2 > 0.3
+      const cents = (value: number) => Math.round(value * 100);
+      if (cents(Number(total) + amount) > cents(Number(account.dailyLimit))) {
         throw new BadRequestException('Limite diário de transações excedido');
       }
     }
