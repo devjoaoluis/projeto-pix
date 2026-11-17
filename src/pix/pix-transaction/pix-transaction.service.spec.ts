@@ -96,13 +96,10 @@ describe('PixTransactionService (BDD Scenarios)', () => {
     const mockTx = {
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
+      where: jest.fn().mockResolvedValue([]),
       insert: jest.fn().mockReturnThis(),
       values: jest.fn().mockReturnThis(),
-      // 1ª chamada: débito condicional; 2ª: insert da transação
-      returning: jest.fn()
-        .mockResolvedValueOnce([{ id: 'acc-A' }])
-        .mockResolvedValueOnce([insertedTx]),
+      returning: jest.fn().mockResolvedValue([insertedTx]),
     };
     dbMock.transaction.mockImplementation(async (cb: any) => cb(mockTx));
 
@@ -198,26 +195,14 @@ describe('PixTransactionService (BDD Scenarios)', () => {
   // =====================================================================
   it('Cenário 4: Tentativa de transferência com saldo insuficiente', async () => {
     const senderAccount = { id: 'acc-A', balance: '20.00', status: 'ACTIVE' };
-    const pixKey = { id: 'key-1', bankAccountId: 'acc-B', key: 'chave-b' };
-    const receiverAccount = { id: 'acc-B', balance: '50.00', status: 'ACTIVE' };
 
-    enqueue([senderAccount], [pixKey], [receiverAccount]);
-
-    // O saldo é conferido pelo débito condicional: nenhuma linha afetada = saldo insuficiente
-    const mockTx = {
-      update: jest.fn().mockReturnThis(),
-      set: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      returning: jest.fn().mockResolvedValueOnce([]),
-      insert: jest.fn(),
-    };
-    dbMock.transaction.mockImplementation(async (cb) => cb(mockTx));
+    enqueue([senderAccount]);
 
     await expect(
-      service.transfer('acc-A', { pixKey: 'chave-b', amount: 50 })
-    ).rejects.toThrow('Saldo insuficiente');
+      service.transfer('acc-A', { pixKey: 'chave-b', amount: 50 }),
+    ).rejects.toThrow(BadRequestException);
 
-    expect(mockTx.insert).not.toHaveBeenCalled();
+    expect(dbMock.transaction).not.toHaveBeenCalled();
     expect(notificationServiceMock.notify).not.toHaveBeenCalled();
   });
 
@@ -311,13 +296,10 @@ describe('PixTransactionService (BDD Scenarios)', () => {
       const mockTx = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
+        where: jest.fn().mockResolvedValue([]),
         insert: jest.fn().mockReturnThis(),
         values: jest.fn().mockReturnThis(),
-        // 1ª chamada: débito condicional; 2ª: insert da transação
-        returning: jest.fn()
-          .mockResolvedValueOnce([{ id: 'acc-A' }])
-          .mockResolvedValueOnce([{ id: 'tx-9' }]),
+        returning: jest.fn().mockResolvedValue([{ id: 'tx-9' }]),
       };
       dbMock.transaction.mockImplementation(async (cb) => cb(mockTx));
 

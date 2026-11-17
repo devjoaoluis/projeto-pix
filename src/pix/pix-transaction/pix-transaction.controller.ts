@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import { PixTransactionService } from './pix-transaction.service';
 import { TransferPixDto } from './dto/transfer-pix.dto';
-import { SchedulePixDto } from './dto/schedule-pix.dto';
 import { ReceivePixDto } from './dto/receive-pix.dto';
 import { FilterPixTransactionsDto } from './dto/filter-pix-transactions.dto';
 
@@ -54,19 +53,8 @@ export class PixTransactionController {
     return this.pixTransactionService.receiveWebhook(dto);
   }
 
-    @Patch(':id/cancel')
-    cancel(@Param('id') id: string) {
-        return this.pixTransactionService.cancel(id);
-    }
-
-    @Post(':senderAccountId/schedule')
-    schedule(@Param('senderAccountId') senderAccountId: string, @Body() dto: SchedulePixDto) {
-        return this.pixTransactionService.schedule(senderAccountId, dto);
-    }
-
-    @Get('account/:bankAccountId/scheduled')
-    getScheduled(@Param('bankAccountId') bankAccountId: string) {
-        return this.pixTransactionService.getScheduled(bankAccountId);
-    }
-
+  @Patch(':id/cancel')
+  cancel(@Param('id') id: string) {
+    return this.pixTransactionService.cancel(id);
+  }
 }
