@@ -96,10 +96,13 @@ describe('PixTransactionService (BDD Scenarios)', () => {
     const mockTx = {
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
-      where: jest.fn().mockResolvedValue([]),
+      where: jest.fn().mockReturnThis(),
       insert: jest.fn().mockReturnThis(),
       values: jest.fn().mockReturnThis(),
-      returning: jest.fn().mockResolvedValue([insertedTx]),
+      // 1ª chamada: débito condicional; 2ª: insert da transação
+      returning: jest.fn()
+        .mockResolvedValueOnce([{ id: 'acc-A' }])
+        .mockResolvedValueOnce([insertedTx]),
     };
     dbMock.transaction.mockImplementation(async (cb: any) => cb(mockTx));
 
@@ -195,14 +198,26 @@ describe('PixTransactionService (BDD Scenarios)', () => {
   // =====================================================================
   it('Cenário 4: Tentativa de transferência com saldo insuficiente', async () => {
     const senderAccount = { id: 'acc-A', balance: '20.00', status: 'ACTIVE' };
+    const pixKey = { id: 'key-1', bankAccountId: 'acc-B', key: 'chave-b' };
+    const receiverAccount = { id: 'acc-B', balance: '50.00', status: 'ACTIVE' };
 
-    enqueue([senderAccount]);
+    enqueue([senderAccount], [pixKey], [receiverAccount]);
+
+    // O saldo é conferido pelo débito condicional: nenhuma linha afetada = saldo insuficiente
+    const mockTx = {
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockResolvedValueOnce([]),
+      insert: jest.fn(),
+    };
+    dbMock.transaction.mockImplementation(async (cb) => cb(mockTx));
 
     await expect(
-      service.transfer('acc-A', { pixKey: 'chave-b', amount: 50 }),
-    ).rejects.toThrow(BadRequestException);
+      service.transfer('acc-A', { pixKey: 'chave-b', amount: 50 })
+    ).rejects.toThrow('Saldo insuficiente');
 
-    expect(dbMock.transaction).not.toHaveBeenCalled();
+    expect(mockTx.insert).not.toHaveBeenCalled();
     expect(notificationServiceMock.notify).not.toHaveBeenCalled();
   });
 
@@ -274,6 +289,128 @@ describe('PixTransactionService (BDD Scenarios)', () => {
         endDate: '2026-01-05T23:59:59Z',
       }),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  describe('limite diário', () => {
+    const sender = { id: 'acc-A', balance: '500.00', status: 'ACTIVE', dailyLimit: '100.00' };
+
+    it('Cenário 13: Transferência negada quando passa do limite diário', async () => {
+      // getSenderAccount -> soma das transferências COMPLETED do dia
+      enqueue([sender], [{ total: '80.00' }]);
+
+      await expect(
+        service.transfer('acc-A', { pixKey: 'chave-b', amount: 30 }),
+      ).rejects.toThrow('Limite diário de transações excedido');
+
+      expect(dbMock.transaction).not.toHaveBeenCalled();
+    });
+
+    it('Cenário 14: Transferência que fecha exatamente o limite diário é aceita', async () => {
+      enqueue([sender], [{ total: '70.00' }], [{ id: 'key-1', bankAccountId: 'acc-B', key: 'chave-b' }], [{ id: 'acc-B', balance: '0', status: 'ACTIVE' }]);
+
+      const mockTx = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        insert: jest.fn().mockReturnThis(),
+        values: jest.fn().mockReturnThis(),
+        // 1ª chamada: débito condicional; 2ª: insert da transação
+        returning: jest.fn()
+          .mockResolvedValueOnce([{ id: 'acc-A' }])
+          .mockResolvedValueOnce([{ id: 'tx-9' }]),
+      };
+      dbMock.transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.transfer('acc-A', { pixKey: 'chave-b', amount: 30 });
+
+      expect(result.transaction).toEqual({ id: 'tx-9' });
+    });
+  });
+
+  it('Cenário 15: Limite diário não é negado por erro de arredondamento', async () => {
+    // 0.1 + 0.2 em float dá 0.30000000000000004, que passaria de 0.30
+    enqueue([{ id: 'acc-A', balance: '500.00', status: 'ACTIVE', dailyLimit: '0.30' }], [{ total: '0.10' }], []); // chave não encontrada: prova que passou do limite
+
+    await expect(
+      service.transfer('acc-A', { pixKey: 'chave-b', amount: 0.2 }),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  describe('cancel (estorno)', () => {
+    const completedTx = {
+      id: 'tx-1',
+      status: 'COMPLETED',
+      amount: '100.00',
+      senderAccountId: 'acc-A',
+      receiverAccountId: 'acc-B',
+    };
+
+    const buildTx = (...returns: any[][]) => {
+      const mockTx: any = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        returning: jest.fn(),
+      };
+      returns.forEach((r) => mockTx.returning.mockResolvedValueOnce(r));
+      dbMock.transaction.mockImplementation(async (cb) => cb(mockTx));
+      return mockTx;
+    };
+
+    it('Cenário 9: Estorno de transação concluída devolve os saldos e notifica', async () => {
+      enqueue([completedTx]);
+      const canceled = { ...completedTx, status: 'CANCELED' };
+      // 1º returning: transação cancelada; 2º: débito do recebedor
+      const mockTx = buildTx([canceled], [{ id: 'acc-B' }]);
+
+      const result = await service.cancel('tx-1');
+
+      expect(result.transaction).toEqual(canceled);
+      expect(dbMock.transaction).toHaveBeenCalledTimes(1);
+      // status + débito do recebedor + crédito do remetente
+      expect(mockTx.update).toHaveBeenCalledTimes(3);
+      expect(notificationServiceMock.notify).toHaveBeenCalledTimes(2);
+      expect(notificationServiceMock.notify).toHaveBeenCalledWith(
+        'acc-A', 'tx-1', 'CANCELED', 100, expect.any(String),
+      );
+    });
+
+    it('Cenário 10: Estorno negado quando o recebedor não tem saldo', async () => {
+      enqueue([completedTx]);
+      // débito do recebedor não afeta nenhuma linha
+      const mockTx = buildTx([{ ...completedTx, status: 'CANCELED' }], []);
+
+      await expect(service.cancel('tx-1')).rejects.toThrow(BadRequestException);
+
+      // lançou dentro do db.transaction (rollback) antes de creditar o remetente
+      expect(mockTx.update).toHaveBeenCalledTimes(2);
+      expect(notificationServiceMock.notify).not.toHaveBeenCalled();
+    });
+
+    it('Cenário 11: Transação já cancelada não é estornada de novo', async () => {
+      enqueue([{ ...completedTx, status: 'CANCELED' }]);
+
+      await expect(service.cancel('tx-1')).rejects.toThrow(BadRequestException);
+
+      expect(dbMock.transaction).not.toHaveBeenCalled();
+    });
+
+    it('Cenário 16: Transação que falhou (FAILED) não é cancelada', async () => {
+      enqueue([{ ...completedTx, status: 'FAILED' }]);
+
+      await expect(service.cancel('tx-1')).rejects.toThrow(
+        'Transação que falhou não pode ser cancelada',
+      );
+
+      expect(dbMock.transaction).not.toHaveBeenCalled();
+      expect(notificationServiceMock.notify).not.toHaveBeenCalled();
+    });
+
+    it('Cenário 12: Transação inexistente', async () => {
+      enqueue([]);
+
+      await expect(service.cancel('tx-x')).rejects.toThrow(NotFoundException);
+    });
   });
 
   // =====================================================================
