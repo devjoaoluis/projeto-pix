@@ -56,10 +56,13 @@ describe('PixTransactionService (BDD Scenarios)', () => {
     const mockTx = {
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
-      where: jest.fn().mockResolvedValue([]),
+      where: jest.fn().mockReturnThis(),
       insert: jest.fn().mockReturnThis(),
       values: jest.fn().mockReturnThis(),
-      returning: jest.fn().mockResolvedValue([insertedTx]),
+      // 1ª chamada: débito condicional; 2ª: insert da transação
+      returning: jest.fn()
+        .mockResolvedValueOnce([{ id: 'acc-A' }])
+        .mockResolvedValueOnce([insertedTx]),
     };
     dbMock.transaction.mockImplementation(async (cb) => cb(mockTx));
 

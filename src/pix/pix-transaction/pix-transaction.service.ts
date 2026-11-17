@@ -74,9 +74,18 @@ export class PixTransactionService {
     const transaction = await this.db.transaction(async (tx) => {
       await tx.update(bankAccounts)
         .set({ balance: sql`balance - ${dto.amount}` })
-        .where(eq(bankAccounts.id, senderAccount.id));
+        .where(and(
+          eq(bankAccounts.id, senderAccount.id),
+          sql`${bankAccounts.balance} >= ${dto.amount}`,
+        ))
+        .returning({ id: bankAccounts.id });
 
-      await tx.update(bankAccounts)
+      if (debited.length === 0) {
+        throw new BadRequestException('Saldo insuficiente');
+      }
+
+      // Débito condicional: o saldo conferido em getSenderAccount pode ter mudado até aqui.
+      const debited = await tx.update(bankAccounts)
         .set({ balance: sql`balance + ${dto.amount}` })
         .where(eq(bankAccounts.id, receiverAccount.id));
 
@@ -113,6 +122,8 @@ export class PixTransactionService {
       dto.amount,
       dto.description,
     );
+          latitude: dto.latitude,
+          longitude: dto.longitude,
 
     return {
       transaction,
