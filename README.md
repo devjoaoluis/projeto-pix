@@ -40,8 +40,3 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 - ✅ Transferir valor entre contas usando chave Pix (envio)
 - ✅ Receber valor em conta usando chave Pix (recebimento)
 
----
-
-## ⚙️ Configuração
-
-- `TZ=America/Sao_Paulo` no `.env`: o limite diário de transferências zera à meia-noite do fuso do processo Node; sem essa variável, em servidor UTC ele zeraria às 21h de Brasília.

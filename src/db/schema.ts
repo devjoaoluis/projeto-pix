@@ -33,8 +33,6 @@ export const bankAccounts = pgTable(
       .notNull(),
     blockedReason: varchar('blocked_reason', { length: 255 }),
     blockedAt: timestamp('blocked_at'),
-    // null = sem limite diário
-    dailyLimit: numeric('daily_limit', { precision: 15, scale: 2 }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },

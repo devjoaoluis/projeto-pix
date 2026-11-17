@@ -266,51 +266,26 @@ export class PixTransactionService {
       throw new BadRequestException('Esta transação já está cancelada');
     }
 
-    if (transaction.status === 'FAILED') {
-      throw new BadRequestException('Transação que falhou não pode ser cancelada');
-    }
-
     const result = await this.db.transaction(async (tx) => {
-      // O filtro por status impede dois cancelamentos simultâneos de estornarem em dobro
       const [canceledTransaction] = await tx
         .update(pixTransactions)
         .set({ status: 'CANCELED' })
-        .where(
-          and(
-            eq(pixTransactions.id, transactionId),
-            eq(pixTransactions.status, transaction.status),
-          ),
-        )
+        .where(eq(pixTransactions.id, transactionId))
         .returning();
 
-      if (!canceledTransaction) {
-        throw new ConflictException('A transação foi alterada por outra operação');
-      }
-
       if (transaction.status === 'COMPLETED') {
-        if (transaction.receiverAccountId) {
-          // Débito condicional: só passa se o recebedor ainda tiver o valor
-          const [debited] = await tx
-            .update(bankAccounts)
-            .set({ balance: sql`balance - ${transaction.amount}` })
-            .where(
-              and(
-                eq(bankAccounts.id, transaction.receiverAccountId),
-                gte(bankAccounts.balance, transaction.amount),
-              ),
-            )
-            .returning({ id: bankAccounts.id });
-
-          if (!debited) {
-            throw new BadRequestException('Saldo do recebedor insuficiente para o estorno');
-          }
-        }
-
         if (transaction.senderAccountId) {
           await tx
             .update(bankAccounts)
             .set({ balance: sql`balance + ${transaction.amount}` })
             .where(eq(bankAccounts.id, transaction.senderAccountId));
+        }
+
+        if (transaction.receiverAccountId) {
+          await tx
+            .update(bankAccounts)
+            .set({ balance: sql`balance - ${transaction.amount}` })
+            .where(eq(bankAccounts.id, transaction.receiverAccountId));
         }
       }
 
@@ -321,7 +296,7 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.senderAccountId,
         transaction.id,
-        'CANCELED',
+        'CANCELED' as any,
         Number(transaction.amount),
         'A sua transação foi cancelada',
       );
@@ -331,7 +306,7 @@ export class PixTransactionService {
       this.notificationService.notify(
         transaction.receiverAccountId,
         transaction.id,
-        'CANCELED',
+        'CANCELED' as any,
         Number(transaction.amount),
         'Transação recebida foi cancelada',
       );
@@ -401,28 +376,6 @@ export class PixTransactionService {
 
     if (parseFloat(account.balance) < amount) {
       throw new BadRequestException('Saldo insuficiente');
-    }
-
-    if (account.dailyLimit != null) {
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-
-      // Só COMPLETED conta: transação estornada (CANCELED) devolve o limite
-      // shortcut: sem lock, duas transferências simultâneas podem passar do limite; usar SELECT ... FOR UPDATE se virar problema
-      const [{ total }] = await this.db
-        .select({ total: sql<string>`coalesce(sum(${pixTransactions.amount}), 0)` })
-        .from(pixTransactions)
-        .where(and(
-          eq(pixTransactions.senderAccountId, account.id),
-          eq(pixTransactions.status, 'COMPLETED'),
-          gte(pixTransactions.createdAt, startOfDay),
-        ));
-
-      // Compara em centavos: em float, 0.1 + 0.2 > 0.3
-      const cents = (value: number) => Math.round(value * 100);
-      if (cents(Number(total) + amount) > cents(Number(account.dailyLimit))) {
-        throw new BadRequestException('Limite diário de transações excedido');
-      }
     }
 
     return account;

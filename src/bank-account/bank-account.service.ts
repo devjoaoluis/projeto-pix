@@ -186,22 +186,6 @@ export class BankAccountService {
     return { message: `Conta bancária ${id} removida com sucesso` };
   }
 
-  //Define o limite diário de transferências da conta
-  async updateDailyLimit(id: string, dailyLimit: number) {
-    await this.findById(id);
-
-    const [bankAccount] = await this.db
-      .update(bankAccounts)
-      .set({
-        dailyLimit: dailyLimit.toFixed(2),
-        updatedAt: new Date(),
-      })
-      .where(eq(bankAccounts.id, id))
-      .returning();
-
-    return bankAccount;
-  }
-
   //Atualiza saldo da conta
   async updateBalance(id: string, amount: number) {
     const bankAccount = await this.findById(id);
