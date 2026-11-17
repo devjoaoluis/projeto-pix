@@ -42,7 +42,9 @@ describe('PIX agendado e localização', () => {
       transaction: jest.fn((cb) => cb(tx)),
     };
     notify = jest.fn();
-    service = new PixTransactionService(db, { notify } as any);
+    service = new PixTransactionService(db, { notify } as any, {
+      evaluateTransfer: jest.fn().mockResolvedValue(null),
+    } as any);
   });
 
   describe('localização (#26)', () => {
