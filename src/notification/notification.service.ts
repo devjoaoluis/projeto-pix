@@ -4,7 +4,7 @@ export interface TransactionNotification {
   id: string;
   accountId: string;
   transactionId: string;
-  type: 'RECEIVE' | 'TRANSFER';
+  type: 'RECEIVE' | 'TRANSFER' | 'CANCELED';
   message: string;
   amount: number;
   description?: string;
@@ -20,7 +20,7 @@ export class NotificationService {
   notify(
     accountId: string,
     transactionId: string,
-    type: 'RECEIVE' | 'TRANSFER',
+    type: TransactionNotification['type'],
     amount: number,
     description?: string,
   ): TransactionNotification {
@@ -29,7 +29,9 @@ export class NotificationService {
     const message =
       type === 'RECEIVE'
         ? `Você recebeu um PIX de R$ ${valorFormatado}`
-        : `PIX de R$ ${valorFormatado} enviado com sucesso`;
+        : type === 'TRANSFER'
+          ? `PIX de R$ ${valorFormatado} enviado com sucesso`
+          : `PIX de R$ ${valorFormatado} cancelado`;
 
     const notification: TransactionNotification = {
       id: crypto.randomUUID(),
