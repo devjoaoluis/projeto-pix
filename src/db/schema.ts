@@ -66,6 +66,7 @@ export const pixTransactions = pgTable('pix_transactions', {
   idempotencyKey: varchar('idempotency_key', { length: 255 }).unique(),
   latitude: doublePrecision('latitude'),
   longitude: doublePrecision('longitude'),
+  scheduledAt: timestamp('scheduled_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
