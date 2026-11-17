@@ -138,6 +138,10 @@ export class PixTransactionService {
         throw new BadRequestException('Esta transação já está cancelada');
       }
 
+      if (transaction.status === 'FAILED') {
+        throw new BadRequestException('Transação que falhou não pode ser cancelada');
+      }
+
       const result = await this.db.transaction(async (tx) => {
 
         // O filtro por status impede dois cancelamentos simultâneos de estornarem em dobro

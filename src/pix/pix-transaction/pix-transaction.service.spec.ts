@@ -323,6 +323,17 @@ describe('PixTransactionService (BDD Scenarios)', () => {
       expect(dbMock.transaction).not.toHaveBeenCalled();
     });
 
+    it('Cenário 16: Transação que falhou (FAILED) não é cancelada', async () => {
+      dbMock.where.mockResolvedValueOnce([{ ...completedTx, status: 'FAILED' }]);
+
+      await expect(service.cancel('tx-1')).rejects.toThrow(
+        'Transação que falhou não pode ser cancelada',
+      );
+
+      expect(dbMock.transaction).not.toHaveBeenCalled();
+      expect(notificationServiceMock.notify).not.toHaveBeenCalled();
+    });
+
     it('Cenário 12: Transação inexistente', async () => {
       dbMock.where.mockResolvedValueOnce([]);
 
