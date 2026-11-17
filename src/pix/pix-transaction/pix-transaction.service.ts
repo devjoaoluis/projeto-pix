@@ -4,6 +4,8 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
+  HttpException,
+  Logger,
 } from '@nestjs/common';
 import { ReceivePixDto } from './dto/receive-pix.dto';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -18,6 +20,8 @@ import {
   HistoryTransaction,
   TransactionDirection,
 } from './dto/history-response.dto';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { SchedulePixDto } from './dto/schedule-pix.dto';
 
 @Injectable()
 export class PixTransactionService {
@@ -176,7 +180,8 @@ export class PixTransactionService {
     return null;
   }
 
-  async transfer(senderAccountId: string, dto: TransferPixDto) {
+  // scheduledTransactionId: executa um agendamento existente em vez de criar uma transação nova.
+  async transfer(senderAccountId: string, dto: TransferPixDto, scheduledTransactionId?: string) {
     const senderAccount = await this.getSenderAccount(senderAccountId, dto.amount);
     const receiverPixKey = await this.resolvePixKey(dto.pixKey);
     const receiverAccount = await this.getReceiverAccount(receiverPixKey.bankAccountId);
@@ -190,18 +195,43 @@ export class PixTransactionService {
     }
 
     const transaction = await this.db.transaction(async (tx) => {
-      await tx
-        .update(bankAccounts)
+      // Débito condicional: o saldo conferido em getSenderAccount pode ter mudado até aqui.
+      const debited = await tx.update(bankAccounts)
         .set({ balance: sql`balance - ${dto.amount}` })
-        .where(eq(bankAccounts.id, senderAccount.id));
+        .where(and(
+          eq(bankAccounts.id, senderAccount.id),
+          sql`${bankAccounts.balance} >= ${dto.amount}`,
+        ))
+        .returning({ id: bankAccounts.id });
+
+      if (debited.length === 0) {
+        throw new BadRequestException('Saldo insuficiente');
+      }
 
       await tx
         .update(bankAccounts)
         .set({ balance: sql`balance + ${dto.amount}` })
         .where(eq(bankAccounts.id, receiverAccount.id));
 
-      const [inserted] = await tx
-        .insert(pixTransactions)
+      if (scheduledTransactionId) {
+        // Só executa se ainda estiver SCHEDULED: impede execução dupla e desfaz o débito se perder a corrida.
+        const [executed] = await tx.update(pixTransactions)
+          // createdAt passa a ser o momento da execução: extrato, relatórios e limite diário contam por ele.
+          .set({ status: 'COMPLETED', receiverAccountId: receiverAccount.id, createdAt: new Date() })
+          .where(and(
+            eq(pixTransactions.id, scheduledTransactionId),
+            eq(pixTransactions.status, 'SCHEDULED'),
+          ))
+          .returning();
+
+        if (!executed) {
+          throw new ConflictException('Agendamento já executado ou cancelado');
+        }
+
+        return executed;
+      }
+
+      const [inserted] = await tx.insert(pixTransactions)
         .values({
           senderAccountId: senderAccount.id,
           receiverAccountId: receiverAccount.id,
@@ -211,6 +241,8 @@ export class PixTransactionService {
           status: 'COMPLETED',
           type: 'TRANSFER',
           idempotencyKey: dto.idempotencyKey,
+          latitude: dto.latitude,
+          longitude: dto.longitude,
         })
         .returning();
 
@@ -399,10 +431,6 @@ export class PixTransactionService {
       throw new BadRequestException('Conta do remetente está bloqueada ou inativa');
     }
 
-    if (parseFloat(account.balance) < amount) {
-      throw new BadRequestException('Saldo insuficiente');
-    }
-
     if (account.dailyLimit != null) {
       const startOfDay = new Date();
       startOfDay.setHours(0, 0, 0, 0);
@@ -478,5 +506,98 @@ export class PixTransactionService {
       .where(eq(pixTransactions.idempotencyKey, externalTransactionId));
 
     return transaction;
+  }
+
+  private readonly logger = new Logger(PixTransactionService.name);
+
+  async schedule(senderAccountId: string, dto: SchedulePixDto) {
+    const scheduledAt = new Date(dto.scheduledAt);
+    if (scheduledAt <= new Date()) {
+      throw new BadRequestException('scheduledAt deve ser uma data futura');
+    }
+
+    // Valor 0: nada é debitado agora; saldo e limite diário valem na execução.
+    await this.getSenderAccount(senderAccountId, 0);
+    const receiverPixKey = await this.resolvePixKey(dto.pixKey);
+
+    if (receiverPixKey.bankAccountId === senderAccountId) {
+      throw new BadRequestException('Não é possível transferir para si mesmo');
+    }
+
+    if (dto.idempotencyKey) {
+      await this.checkIdempotency(dto.idempotencyKey);
+    }
+
+    const [scheduled] = await this.db.insert(pixTransactions)
+      .values({
+        // receiverAccountId só é preenchido na execução: até lá o destinatário não vê nem é notificado.
+        senderAccountId,
+        pixKeyId: receiverPixKey.id,
+        amount: dto.amount.toString(),
+        description: dto.description,
+        status: 'SCHEDULED',
+        type: 'TRANSFER',
+        idempotencyKey: dto.idempotencyKey,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        scheduledAt,
+      })
+      .returning();
+
+    return scheduled;
+  }
+
+  async getScheduled(bankAccountId: string) {
+    return this.db
+      .select()
+      .from(pixTransactions)
+      .where(and(
+        eq(pixTransactions.senderAccountId, bankAccountId),
+        eq(pixTransactions.status, 'SCHEDULED'),
+      ))
+      .orderBy(pixTransactions.scheduledAt);
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async runDueScheduled() {
+    const due = await this.db
+      .select({ transaction: pixTransactions, pixKey: pixKeys.key })
+      .from(pixTransactions)
+      .innerJoin(pixKeys, eq(pixKeys.id, pixTransactions.pixKeyId))
+      .where(and(
+        eq(pixTransactions.status, 'SCHEDULED'),
+        lte(pixTransactions.scheduledAt, new Date()),
+      ));
+
+    for (const { transaction, pixKey } of due) {
+      const senderAccountId = transaction.senderAccountId as string;
+      const amount = parseFloat(transaction.amount);
+
+      try {
+        await this.transfer(
+          senderAccountId,
+          { pixKey, amount, description: transaction.description ?? undefined },
+          transaction.id,
+        );
+      } catch (error) {
+        if (!(error instanceof HttpException)) {
+          // Erro de infraestrutura: continua SCHEDULED e é tentado de novo no próximo ciclo.
+          this.logger.error(`Falha ao executar o agendamento ${transaction.id}`, error);
+          continue;
+        }
+
+        const [failed] = await this.db.update(pixTransactions)
+          .set({ status: 'FAILED' })
+          .where(and(
+            eq(pixTransactions.id, transaction.id),
+            eq(pixTransactions.status, 'SCHEDULED'),
+          ))
+          .returning();
+
+        if (failed) {
+          this.notificationService.notify(senderAccountId, transaction.id, 'FAILED', amount, error.message);
+        }
+      }
+    }
   }
 }
