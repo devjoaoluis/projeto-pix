@@ -213,6 +213,45 @@ describe('PixTransactionService (BDD Scenarios)', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  describe('limite diário', () => {
+    const sender = { id: 'acc-A', balance: '500.00', status: 'ACTIVE', dailyLimit: '100.00' };
+
+    it('Cenário 13: Transferência negada quando passa do limite diário', async () => {
+      // getSenderAccount -> soma das transferências COMPLETED do dia
+      dbMock.where
+        .mockResolvedValueOnce([sender])
+        .mockResolvedValueOnce([{ total: '80.00' }]);
+
+      await expect(
+        service.transfer('acc-A', { pixKey: 'chave-b', amount: 30 }),
+      ).rejects.toThrow('Limite diário de transações excedido');
+
+      expect(dbMock.transaction).not.toHaveBeenCalled();
+    });
+
+    it('Cenário 14: Transferência que fecha exatamente o limite diário é aceita', async () => {
+      dbMock.where
+        .mockResolvedValueOnce([sender])
+        .mockResolvedValueOnce([{ total: '70.00' }])
+        .mockResolvedValueOnce([{ id: 'key-1', bankAccountId: 'acc-B', key: 'chave-b' }])
+        .mockResolvedValueOnce([{ id: 'acc-B', balance: '0', status: 'ACTIVE' }]);
+
+      const mockTx = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockResolvedValue([]),
+        insert: jest.fn().mockReturnThis(),
+        values: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockResolvedValue([{ id: 'tx-9' }]),
+      };
+      dbMock.transaction.mockImplementation(async (cb) => cb(mockTx));
+
+      const result = await service.transfer('acc-A', { pixKey: 'chave-b', amount: 30 });
+
+      expect(result.transaction).toEqual({ id: 'tx-9' });
+    });
+  });
+
   describe('cancel (estorno)', () => {
     const completedTx = {
       id: 'tx-1',

@@ -266,6 +266,26 @@ export class PixTransactionService {
       throw new BadRequestException('Saldo insuficiente');
     }
 
+    if (account.dailyLimit !== null && account.dailyLimit !== undefined) {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      // Só COMPLETED conta: transação estornada (CANCELED) devolve o limite
+      // shortcut: sem lock, duas transferências simultâneas podem passar do limite; usar SELECT ... FOR UPDATE se virar problema
+      const [{ total }] = await this.db
+        .select({ total: sql<string>`coalesce(sum(${pixTransactions.amount}), 0)` })
+        .from(pixTransactions)
+        .where(and(
+          eq(pixTransactions.senderAccountId, account.id),
+          eq(pixTransactions.status, 'COMPLETED'),
+          gte(pixTransactions.createdAt, startOfDay),
+        ));
+
+      if (Number(total) + amount > Number(account.dailyLimit)) {
+        throw new BadRequestException('Limite diário de transações excedido');
+      }
+    }
+
     return account;
   }
 
