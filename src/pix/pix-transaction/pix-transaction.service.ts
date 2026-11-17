@@ -19,7 +19,7 @@ export class PixTransactionService {
     @Inject('DRIZZLE')
     private readonly db: NodePgDatabase<Record<string, never>>,
     private readonly notificationService: NotificationService,
-  )
+  ) {}
 
   async findAll() {
     return this.db.select().from(pixTransactions);
@@ -127,14 +127,14 @@ export class PixTransactionService {
 
       const [transaction] = await this.db
         .select()
-        .from(picTransactions)
-        .where(eq(pixTransactions.id, transcationId));
+        .from(pixTransactions)
+        .where(eq(pixTransactions.id, transactionId));
 
       if (!transaction) {
         throw new NotFoundException('Transação não encontrada');
       }
 
-      if (transaction.status !== 'CANCELED') {
+      if (transaction.status === 'CANCELED') {
         throw new BadRequestException('Esta transação já está cancelada');
       }
 
@@ -170,7 +170,7 @@ export class PixTransactionService {
         transaction.senderAccountId,
         transaction.id,
         'CANCELED',
-        transaction.amount,
+        Number(transaction.amount),
         'A sua transação foi cancelada',
       );
     }
@@ -180,7 +180,7 @@ export class PixTransactionService {
         transaction.receiverAccountId,
         transaction.id,
         'CANCELED',
-        transaction.amount,
+        Number(transaction.amount),
         'Transação recebida foi cancelada',
       );
     }
