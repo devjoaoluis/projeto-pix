@@ -1,13 +1,10 @@
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { PixTransactionService } from './pix-transaction.service';
 import { TransferPixDto } from './dto/transfer-pix.dto';
 import { SchedulePixDto } from './dto/schedule-pix.dto';
+import { bankAccounts, pixTransactions } from '../../db/schema';
 
 // Query builder falso: qualquer método encadeia e o await devolve `result`.
 const chain = (result: unknown) => {
@@ -82,16 +79,6 @@ describe('PIX agendado e localização', () => {
     });
   });
 
-  it('transfer falha sem notificar quando o débito condicional não afeta nenhuma linha', async () => {
-    queue(db.select, [sender], [pixKey], [receiver]);
-    queue(tx.update, []);
-
-    await expect(service.transfer('acc-A', { pixKey: 'chave-b', amount: 10 })).rejects.toThrow('Saldo insuficiente');
-
-    expect(tx.insert).not.toHaveBeenCalled();
-    expect(notify).not.toHaveBeenCalled();
-  });
-
   describe('agendamento (#27)', () => {
     const future = new Date(Date.now() + 86_400_000).toISOString();
 
@@ -119,6 +106,7 @@ describe('PIX agendado e localização', () => {
       expect(insert.values).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'SCHEDULED', amount: '500', scheduledAt: new Date(future) }),
       );
+      expect(insert.values.mock.calls[0][0]).not.toHaveProperty('receiverAccountId');
       expect(db.transaction).not.toHaveBeenCalled();
     });
 
@@ -130,14 +118,19 @@ describe('PIX agendado e localização', () => {
       ).rejects.toThrow(ConflictException);
     });
 
-    it('cancelScheduled lança NotFound quando o agendamento não está mais SCHEDULED', async () => {
-      queue(db.update, []);
-      await expect(service.cancelScheduled('tx-9')).rejects.toThrow(NotFoundException);
-    });
+    it('cancel() de um agendamento só muda o status: não mexe em saldo nem avisa o destinatário', async () => {
+      const scheduled = { id: 'tx-9', status: 'SCHEDULED', senderAccountId: 'acc-A', receiverAccountId: null, amount: '50.00' };
+      queue(db.select, [scheduled]);
+      queue(tx.update, [{ ...scheduled, status: 'CANCELED' }]);
 
-    it('cancelScheduled devolve o agendamento cancelado', async () => {
-      queue(db.update, [{ id: 'tx-9', status: 'CANCELED' }]);
-      expect(await service.cancelScheduled('tx-9')).toEqual({ id: 'tx-9', status: 'CANCELED' });
+      const result = await service.cancel('tx-9');
+
+      expect(result.transaction.status).toBe('CANCELED');
+      expect(tx.update).toHaveBeenCalledTimes(1);
+      expect(tx.update).toHaveBeenCalledWith(pixTransactions);
+      expect(tx.update).not.toHaveBeenCalledWith(bankAccounts);
+      expect(notify).toHaveBeenCalledTimes(1);
+      expect(notify).toHaveBeenCalledWith('acc-A', 'tx-9', 'CANCELED', 50, expect.any(String));
     });
 
     it('executar agendamento atualiza a própria transação em vez de inserir outra', async () => {

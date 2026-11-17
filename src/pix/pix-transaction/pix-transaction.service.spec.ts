@@ -139,14 +139,29 @@ describe('PixTransactionService (BDD Scenarios)', () => {
 
   it('Cenário 4: Tentativa de transferência com saldo insuficiente', async () => {
     const senderAccount = { id: 'acc-A', balance: '20.00', status: 'ACTIVE' };
+    const pixKey = { id: 'key-1', bankAccountId: 'acc-B', key: 'chave-b' };
+    const receiverAccount = { id: 'acc-B', balance: '50.00', status: 'ACTIVE' };
 
-    dbMock.where.mockResolvedValueOnce([senderAccount]);
+    dbMock.where
+      .mockResolvedValueOnce([senderAccount])
+      .mockResolvedValueOnce([pixKey])
+      .mockResolvedValueOnce([receiverAccount]);
+
+    // O saldo é conferido pelo débito condicional: nenhuma linha afetada = saldo insuficiente
+    const mockTx = {
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockResolvedValueOnce([]),
+      insert: jest.fn(),
+    };
+    dbMock.transaction.mockImplementation(async (cb) => cb(mockTx));
 
     await expect(
       service.transfer('acc-A', { pixKey: 'chave-b', amount: 50 })
-    ).rejects.toThrow(BadRequestException);
+    ).rejects.toThrow('Saldo insuficiente');
 
-    expect(dbMock.transaction).not.toHaveBeenCalled();
+    expect(mockTx.insert).not.toHaveBeenCalled();
     expect(notificationServiceMock.notify).not.toHaveBeenCalled();
   });
 

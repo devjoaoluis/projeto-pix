@@ -48,9 +48,4 @@ export class PixTransactionController {
         return this.pixTransactionService.getScheduled(bankAccountId);
     }
 
-    @Patch('scheduled/:id/cancel')
-    cancelScheduled(@Param('id') id: string) {
-        return this.pixTransactionService.cancelScheduled(id);
-    }
-
 }

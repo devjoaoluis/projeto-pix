@@ -280,10 +280,6 @@ export class PixTransactionService {
       throw new BadRequestException('Conta do remetente está bloqueada ou inativa');
     }
 
-    if (parseFloat(account.balance) < amount) {
-      throw new BadRequestException('Saldo insuficiente');
-    }
-
     return account;
   }
 
@@ -347,7 +343,7 @@ export class PixTransactionService {
       throw new BadRequestException('scheduledAt deve ser uma data futura');
     }
 
-    // Valor 0: aqui só importa a conta existir e estar ativa; o saldo é exigido na execução.
+    // Valor 0: nada é debitado agora; saldo e limite diário valem na execução.
     await this.getSenderAccount(senderAccountId, 0);
     const receiverPixKey = await this.resolvePixKey(dto.pixKey);
 
@@ -361,8 +357,8 @@ export class PixTransactionService {
 
     const [scheduled] = await this.db.insert(pixTransactions)
       .values({
+        // receiverAccountId só é preenchido na execução: até lá o destinatário não vê nem é notificado.
         senderAccountId,
-        receiverAccountId: receiverPixKey.bankAccountId,
         pixKeyId: receiverPixKey.id,
         amount: dto.amount.toString(),
         description: dto.description,
@@ -387,22 +383,6 @@ export class PixTransactionService {
         eq(pixTransactions.status, 'SCHEDULED'),
       ))
       .orderBy(pixTransactions.scheduledAt);
-  }
-
-  async cancelScheduled(transactionId: string) {
-    const [canceled] = await this.db.update(pixTransactions)
-      .set({ status: 'CANCELED' })
-      .where(and(
-        eq(pixTransactions.id, transactionId),
-        eq(pixTransactions.status, 'SCHEDULED'),
-      ))
-      .returning();
-
-    if (!canceled) {
-      throw new NotFoundException('Agendamento não encontrado ou já processado');
-    }
-
-    return canceled;
   }
 
   @Cron(CronExpression.EVERY_MINUTE)
