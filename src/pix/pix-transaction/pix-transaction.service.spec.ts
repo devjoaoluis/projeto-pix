@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PixTransactionService } from './pix-transaction.service';
 import { NotificationService } from '../../notification/notification.service';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 describe('PixTransactionService (BDD Scenarios)', () => {
   let service: PixTransactionService;
@@ -211,5 +211,71 @@ describe('PixTransactionService (BDD Scenarios)', () => {
         endDate: '2026-01-05T23:59:59Z',
       })
     ).rejects.toThrow(BadRequestException);
+  });
+
+  describe('cancel (estorno)', () => {
+    const completedTx = {
+      id: 'tx-1',
+      status: 'COMPLETED',
+      amount: '100.00',
+      senderAccountId: 'acc-A',
+      receiverAccountId: 'acc-B',
+    };
+
+    const buildTx = (...returns: any[][]) => {
+      const mockTx: any = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        returning: jest.fn(),
+      };
+      returns.forEach((r) => mockTx.returning.mockResolvedValueOnce(r));
+      dbMock.transaction.mockImplementation(async (cb) => cb(mockTx));
+      return mockTx;
+    };
+
+    it('Cenário 9: Estorno de transação concluída devolve os saldos e notifica', async () => {
+      dbMock.where.mockResolvedValueOnce([completedTx]);
+      const canceled = { ...completedTx, status: 'CANCELED' };
+      // 1º returning: transação cancelada; 2º: débito do recebedor
+      const mockTx = buildTx([canceled], [{ id: 'acc-B' }]);
+
+      const result = await service.cancel('tx-1');
+
+      expect(result.transaction).toEqual(canceled);
+      expect(dbMock.transaction).toHaveBeenCalledTimes(1);
+      // status + débito do recebedor + crédito do remetente
+      expect(mockTx.update).toHaveBeenCalledTimes(3);
+      expect(notificationServiceMock.notify).toHaveBeenCalledTimes(2);
+      expect(notificationServiceMock.notify).toHaveBeenCalledWith(
+        'acc-A', 'tx-1', 'CANCELED', 100, expect.any(String),
+      );
+    });
+
+    it('Cenário 10: Estorno negado quando o recebedor não tem saldo', async () => {
+      dbMock.where.mockResolvedValueOnce([completedTx]);
+      // débito do recebedor não afeta nenhuma linha
+      const mockTx = buildTx([{ ...completedTx, status: 'CANCELED' }], []);
+
+      await expect(service.cancel('tx-1')).rejects.toThrow(BadRequestException);
+
+      // lançou dentro do db.transaction (rollback) antes de creditar o remetente
+      expect(mockTx.update).toHaveBeenCalledTimes(2);
+      expect(notificationServiceMock.notify).not.toHaveBeenCalled();
+    });
+
+    it('Cenário 11: Transação já cancelada não é estornada de novo', async () => {
+      dbMock.where.mockResolvedValueOnce([{ ...completedTx, status: 'CANCELED' }]);
+
+      await expect(service.cancel('tx-1')).rejects.toThrow(BadRequestException);
+
+      expect(dbMock.transaction).not.toHaveBeenCalled();
+    });
+
+    it('Cenário 12: Transação inexistente', async () => {
+      dbMock.where.mockResolvedValueOnce([]);
+
+      await expect(service.cancel('tx-x')).rejects.toThrow(NotFoundException);
+    });
   });
 });

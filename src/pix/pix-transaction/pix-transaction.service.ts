@@ -140,25 +140,41 @@ export class PixTransactionService {
 
       const result = await this.db.transaction(async (tx) => {
 
+        // O filtro por status impede dois cancelamentos simultâneos de estornarem em dobro
         const [canceledTransaction] = await tx
           .update(pixTransactions)
           .set({ status: 'CANCELED' })
-          .where(eq(pixTransactions.id, transactionId))
+          .where(and(
+            eq(pixTransactions.id, transactionId),
+            eq(pixTransactions.status, transaction.status),
+          ))
           .returning();
 
+        if (!canceledTransaction) {
+          throw new ConflictException('A transação foi alterada por outra operação');
+        }
+
       if (transaction.status === 'COMPLETED') {
-        
+
+        if (transaction.receiverAccountId) {
+          // Débito condicional: só passa se o recebedor ainda tiver o valor
+          const [debited] = await tx.update(bankAccounts)
+            .set({ balance: sql`balance - ${transaction.amount}` })
+            .where(and(
+              eq(bankAccounts.id, transaction.receiverAccountId),
+              gte(bankAccounts.balance, transaction.amount),
+            ))
+            .returning({ id: bankAccounts.id });
+
+          if (!debited) {
+            throw new BadRequestException('Saldo do recebedor insuficiente para o estorno');
+          }
+        }
+
         if (transaction.senderAccountId) {
           await tx.update(bankAccounts)
             .set({ balance: sql`balance + ${transaction.amount}` })
             .where(eq(bankAccounts.id, transaction.senderAccountId));
-        }
-      
-
-        if (transaction.receiverAccountId) {
-          await tx.update(bankAccounts)
-            .set({ balance: sql`balance - ${transaction.amount}` })
-            .where(eq(bankAccounts.id, transaction.receiverAccountId));
         }
       }
 
