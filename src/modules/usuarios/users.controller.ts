@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, ParseUUIDPipe } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 
@@ -17,7 +17,7 @@ export class UsersController {
   }
 
   @Get(':id')
-  async findById(@Param('id') id: string) {
+  async findById(@Param('id', ParseUUIDPipe) id: string) {
     return await this.usersService.findById(id);
   }
 }

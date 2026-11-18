@@ -20,14 +20,6 @@ export class UsersRepository {
     return newUser;
   }
 
-  async findByCpf(cpf: string) {
-    const [user] = await this.db
-      .select()
-      .from(users)
-      .where(eq(users.cpf, cpf));
-    return user;
-  }
-
   async findById(id: string) {
     const [user] = await this.db
       .select()
