@@ -34,6 +34,7 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 - ✅ Alterar chave Pix associada (atualização do valor da chave ou da conta bancária vinculada)
 - ✅ Desbloquear chave Pix suspensa (reativação de chave com status SUSPENDED / BLOCKED)
 - ✅ Suspender chave Pix (bloqueio temporário da chave)
+- ✅ Integrar chaves Pix com contatos do usuário (agenda de contatos com resolução e sincronização automática de chaves Pix)
 - ✅ Remover chave Pix associada à conta
 
 ### 💸 Transferências (Pix)
