@@ -6,6 +6,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 //
 // Pré-requisito: a API precisa estar rodando em http://localhost:3000
 // (rode `npm start` em outro terminal antes de `npm run test`).
+// Atenção: `npm test` ignora este arquivo; rode-o com `npm run test:integration`.
 
 const BASE_URL = 'http://localhost:3000';
 
