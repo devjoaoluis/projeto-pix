@@ -19,6 +19,18 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const userActivityLogs = pgTable('user_activity_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  type: varchar('type', { length: 50 }).notNull(),
+  description: varchar('description', { length: 255 }).notNull(),
+  ipAddress: varchar('ip_address', { length: 45 }),
+  device: varchar('device', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export const bankAccounts = pgTable(
   'bank_accounts',
   {

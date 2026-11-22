@@ -27,6 +27,39 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 - **Método**: `GET`
 - **Rota**: `/users/:id`
 
+### Registrar Login do Usuário
+- **Método**: `POST`
+- **Rota**: `/users/:id/login`
+- **Body** (JSON opcional):
+```json
+{
+  "ipAddress": "192.168.1.10",
+  "device": "App Mobile iOS",
+  "description": "Login via biometria"
+}
+```
+
+### Registrar Atividade do Usuário
+- **Método**: `POST`
+- **Rota**: `/users/:id/activities`
+- **Body** (JSON):
+```json
+{
+  "type": "KEY_CHANGE",
+  "description": "Alteração de chave PIX associada",
+  "ipAddress": "192.168.1.10",
+  "device": "Web Browser Chrome"
+}
+```
+
+### Consultar Histórico de Atividades do Usuário
+- **Método**: `GET`
+- **Rota**: `/users/:id/activities?type=LOGIN&startDate=2026-09-01T00:00:00Z&endDate=2026-09-30T23:59:59Z`
+
+### Consultar Histórico de Logins do Usuário
+- **Método**: `GET`
+- **Rota**: `/users/:id/login-history`
+
 ---
 
 ## 2. Contas Bancárias (`/bank-accounts`)
