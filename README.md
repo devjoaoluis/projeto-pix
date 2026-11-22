@@ -51,3 +51,35 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e tra
 ## ⚙️ Configuração
 
 - `TZ=America/Sao_Paulo` no `.env`: o limite diário de transferências zera à meia-noite do fuso do processo Node; sem essa variável, em servidor UTC ele zeraria às 21h de Brasília.
+
+---
+
+## 🐳 Rodando com Docker (banco + API)
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Sobe o Postgres, cria as tabelas, insere os dados de exemplo e inicia a API em `http://localhost:3000`.
+
+> Se você já tinha o volume antigo `projeto-pix_banco_pix_data` (de uma versão anterior do compose), rode `docker compose down -v` uma vez para recriá-lo limpo. Isso apaga os dados locais.
+
+## 🏗️ Infraestrutura como código (Terraform)
+
+Em `infra/`, o Terraform (provider `docker`) cria rede, volume, banco, seed e API. As imagens são construídas antes, fora do Terraform:
+
+```bash
+docker build --target runtime -t pix-api:latest .
+docker build --target build   -t pix-seed:latest .
+
+cd infra
+terraform init
+export TF_VAR_db_password=<senha>           # a senha nunca vai em arquivo
+terraform workspace new dev                 # um estado por ambiente (dev, hom, prd)
+terraform plan  -var-file=envs/dev.tfvars   # mostra o que vai mudar
+terraform apply -var-file=envs/dev.tfvars
+terraform destroy -var-file=envs/dev.tfvars
+```
+
+Cada ambiente usa portas próprias (`envs/*.tfvars`), então dev, hom e prd podem rodar juntos.
