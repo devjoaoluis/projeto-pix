@@ -323,3 +323,19 @@ GET {{baseUrl}}/notifications
 ### Listar notificações da conta
 
 GET {{baseUrl}}/notifications/{{bankAccountId}}
+
+### Consultar preferências de notificação (SMS / Email)
+
+GET {{baseUrl}}/notifications/{{bankAccountId}}/preferences
+
+### Habilitar notificação por SMS e Email
+
+PATCH {{baseUrl}}/notifications/{{bankAccountId}}/preferences
+Content-Type: application/json
+
+{
+  "smsEnabled": true,
+  "emailEnabled": true,
+  "phone": "11999999998",
+  "email": "luis@gmail.com"
+}
