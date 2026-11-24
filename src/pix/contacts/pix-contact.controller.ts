@@ -6,12 +6,15 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PixContactService } from './pix-contact.service';
 import { CreatePixContactDto } from './dto/create-pix-contact.dto';
 import { UpdatePixContactDto } from './dto/update-pix-contact.dto';
 
 @Controller('pix/contacts')
+@UseGuards(JwtAuthGuard)
 export class PixContactController {
   constructor(private readonly pixContactService: PixContactService) {}
 

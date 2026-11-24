@@ -3,11 +3,21 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { hashPassword } from '../../auth/password.util';
 import { UsersRepository } from './users.repository';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CreateActivityLogDto } from './dto/create-activity-log.dto';
 import { FilterActivityLogsDto } from './dto/filter-activity-logs.dto';
+
+export function sanitizeUser<T>(user: T): Omit<T, 'passwordHash'> {
+  if (!user || typeof user !== 'object' || !('passwordHash' in user)) {
+    return user as Omit<T, 'passwordHash'>;
+  }
+  const copy = { ...(user as Record<string, unknown>) };
+  delete copy.passwordHash;
+  return copy as Omit<T, 'passwordHash'>;
+}
 
 @Injectable()
 export class UsersService {
@@ -15,14 +25,16 @@ export class UsersService {
 
   async create(dto: CreateUserDto) {
     try {
-      return await this.usersRepository.create({
+      const created = await this.usersRepository.create({
         name: dto.name,
         cpf: dto.cpf,
         email: dto.email,
         phone: dto.phone,
+        ...(dto.password ? { passwordHash: hashPassword(dto.password) } : {}),
       });
+      return sanitizeUser(created);
     } catch (e: any) {
-      if ((e?.cause?.code ?? e?.code) === '23505') {
+      if (((e as { cause?: { code?: string }; code?: string })?.cause?.code ?? (e as { code?: string })?.code) === '23505') {
         throw new BadRequestException(
           'Já existe um usuário cadastrado com este CPF.',
         );
@@ -38,11 +50,12 @@ export class UsersService {
       throw new NotFoundException('Usuário não encontrado.');
     }
 
-    return user;
+    return sanitizeUser(user);
   }
 
   async findAll() {
-    return await this.usersRepository.findAll();
+    const all = await this.usersRepository.findAll();
+    return Array.isArray(all) ? all.map((u) => sanitizeUser(u)) : all;
   }
 
   async registerLogin(userId: string, dto: CreateActivityLogDto = {}) {
@@ -115,8 +128,11 @@ export class UsersService {
     const phone = dto.phone ?? dto.telefone;
     const email = dto.email;
 
-    const updatePayload: Partial<{ name: string; email: string; phone: string }> =
-      {};
+    const updatePayload: Partial<{
+      name: string;
+      email: string;
+      phone: string;
+    }> = {};
     if (name !== undefined) updatePayload.name = name.trim();
     if (email !== undefined) updatePayload.email = email.trim();
     if (phone !== undefined) updatePayload.phone = phone.trim();
@@ -126,9 +142,10 @@ export class UsersService {
     }
 
     try {
-      return await this.usersRepository.update(id, updatePayload);
+      const updated = await this.usersRepository.update(id, updatePayload);
+      return sanitizeUser(updated);
     } catch (e: any) {
-      if ((e?.cause?.code ?? e?.code) === '23505') {
+      if (((e as { cause?: { code?: string }; code?: string })?.cause?.code ?? (e as { code?: string })?.code) === '23505') {
         throw new BadRequestException(
           'Já existe um usuário cadastrado com estes dados.',
         );

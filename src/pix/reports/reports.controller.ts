@@ -1,9 +1,20 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { CurrentUser } from '../../auth/decorators/auth.decorators';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import type { JwtUserPayload } from '../../auth/jwt-token.service';
 import { ReportsService } from './reports.service';
 import { ReportFilterDto } from './dto/report-filter.dto';
 
 @Controller('pix/reports')
+@UseGuards(JwtAuthGuard)
 export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
@@ -30,7 +41,16 @@ export class ReportsController {
   }
 
   @Get(':reportId')
-  async getReport(@Param('reportId') reportId: string) {
-    return this.reportsService.getReport(reportId);
+  async getReport(
+    @Param('reportId') reportId: string,
+    @CurrentUser() user?: JwtUserPayload,
+  ) {
+    const report = await this.reportsService.getReport(reportId);
+    if (user && user.role !== 'ADMIN' && report.userId !== user.sub) {
+      throw new ForbiddenException(
+        'Acesso negado ao relatório de outro usuário',
+      );
+    }
+    return report;
   }
 }

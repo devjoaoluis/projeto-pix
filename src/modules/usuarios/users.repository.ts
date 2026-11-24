@@ -2,6 +2,7 @@ import { Injectable, Inject } from '@nestjs/common';
 import { and, desc, eq, gte, inArray, lte, or, SQL } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
+  accountPermissions,
   bankAccounts,
   pixKeys,
   pixTransactions,
@@ -24,6 +25,8 @@ export class UsersRepository {
     cpf: string;
     email: string;
     phone: string;
+    passwordHash?: string | null;
+    role?: string;
   }) {
     const [newUser] = await this.db
       .insert(users)
@@ -32,6 +35,10 @@ export class UsersRepository {
         cpf: user.cpf,
         email: user.email,
         phone: user.phone,
+        ...(user.passwordHash !== undefined
+          ? { passwordHash: user.passwordHash }
+          : {}),
+        ...(user.role !== undefined ? { role: user.role } : {}),
       })
       .returning();
 
@@ -40,6 +47,19 @@ export class UsersRepository {
 
   async findById(id: string) {
     const [user] = await this.db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async findByEmail(email: string) {
+    const [user] = await this.db
+      .select()
+      .from(users)
+      .where(eq(users.email, email));
+    return user;
+  }
+
+  async findByCpf(cpf: string) {
+    const [user] = await this.db.select().from(users).where(eq(users.cpf, cpf));
     return user;
   }
 
@@ -120,7 +140,15 @@ export class UsersRepository {
 
     const accountIds = userAccounts.map((a) => a.id);
 
+    await this.db
+      .delete(accountPermissions)
+      .where(eq(accountPermissions.userId, id));
+
     if (accountIds.length > 0) {
+      await this.db
+        .delete(accountPermissions)
+        .where(inArray(accountPermissions.bankAccountId, accountIds));
+
       await this.db
         .delete(pixTransactions)
         .where(
@@ -139,9 +167,7 @@ export class UsersRepository {
         .delete(pixKeys)
         .where(inArray(pixKeys.bankAccountId, accountIds));
 
-      await this.db
-        .delete(bankAccounts)
-        .where(eq(bankAccounts.userId, id));
+      await this.db.delete(bankAccounts).where(eq(bankAccounts.userId, id));
     }
 
     await this.db
@@ -152,9 +178,7 @@ export class UsersRepository {
       .delete(userActivityLogs)
       .where(eq(userActivityLogs.userId, id));
 
-    await this.db
-      .delete(reports)
-      .where(eq(reports.userId, id));
+    await this.db.delete(reports).where(eq(reports.userId, id));
 
     const [deletedUser] = await this.db
       .delete(users)

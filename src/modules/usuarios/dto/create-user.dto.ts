@@ -1,14 +1,18 @@
 import {
   IsEmail,
   IsNotEmpty,
+  IsOptional,
   IsString,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { IsCPF } from 'brazilian-class-validator';
 
 export class CreateUserDto {
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : (value as unknown),
+  )
   @IsString({ message: 'O nome deve ser uma string.' })
   @IsNotEmpty({ message: 'O nome é obrigatório.' })
   @MaxLength(255, { message: 'O nome deve ter no máximo 255 caracteres.' })
@@ -16,7 +20,7 @@ export class CreateUserDto {
 
   // Grava só os dígitos para que "529.982.247-25" e "52998224725" não burlem o unique.
   @Transform(({ value }) =>
-    typeof value === 'string' ? value.replace(/\D/g, '') : value,
+    typeof value === 'string' ? value.replace(/\D/g, '') : (value as unknown),
   )
   @IsCPF({ message: 'O CPF fornecido é inválido.' })
   @IsNotEmpty({ message: 'O CPF é obrigatório.' })
@@ -27,9 +31,17 @@ export class CreateUserDto {
   @MaxLength(255, { message: 'O e-mail deve ter no máximo 255 caracteres.' })
   email!: string;
 
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.trim() : (value as unknown),
+  )
   @IsString({ message: 'O telefone deve ser uma string.' })
   @IsNotEmpty({ message: 'O telefone é obrigatório.' })
   @MaxLength(20, { message: 'O telefone deve ter no máximo 20 caracteres.' })
   phone!: string;
+
+  @IsOptional()
+  @IsString({ message: 'A senha deve ser uma string.' })
+  @MinLength(6, { message: 'A senha deve ter no mínimo 6 caracteres.' })
+  @MaxLength(128, { message: 'A senha deve ter no máximo 128 caracteres.' })
+  password?: string;
 }

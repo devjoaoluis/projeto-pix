@@ -1,15 +1,28 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { Roles } from '../auth/decorators/auth.decorators';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AccountAccessGuard } from '../auth/guards/account-access.guard';
 import { NotificationService } from './notification.service';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 
 @Controller('notifications')
+@UseGuards(JwtAuthGuard, AccountAccessGuard)
 export class NotificationController {
   constructor(private readonly notificationService: NotificationService) {}
 
   /**
    * GET /notifications
-   * Lista todas as notificações (útil para debug e testes)
+   * Lista todas as notificações (exclusivo ADMIN)
    */
+  @Roles('ADMIN')
   @Get()
   getAll() {
     return this.notificationService.getAll();
