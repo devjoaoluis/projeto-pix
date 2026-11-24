@@ -130,7 +130,7 @@ npm install
 cp .env.example .env
 # Descomente e ajuste DB_URL no .env apontando para o seu PostgreSQL
 
-npm run db:push
+npm run db:migrate
 npm run seed
 npm run start:dev
 ```

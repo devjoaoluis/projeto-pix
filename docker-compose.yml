@@ -39,7 +39,7 @@ services:
         condition: service_healthy
     environment:
       DB_URL: postgresql://${POSTGRES_USER:-root}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-banco_pix}
-    command: sh -c "npm run db:push -- --force && npm run seed"
+    command: sh -c "npm run db:migrate && npm run seed"
 
   api:
     build:
