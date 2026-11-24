@@ -10,6 +10,7 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix, tran
 - **[PostgreSQL 15](https://www.postgresql.org/)** & **[Drizzle ORM](https://orm.drizzle.team/)** – Persistência relacional, schema tipado e migrations/push (`drizzle-kit`).
 - **Class-Validator**, **Class-Transformer** e **brazilian-class-validator** – Validação e transformação de DTOs (incluindo CPF/CNPJ e chaves Pix).
 - **@nestjs/schedule** – Agendamento de tarefas (cron) para execução automática de Pix agendados.
+- **nestjs-pino** & **pino-http** – Logs estruturados em JSON com `requestId` e mascaramento automático de dados sensíveis (CPF, senhas e credenciais).
 - **Docker** & **Docker Compose** – Build multi-stage e orquestração completa (PostgreSQL + seed + API).
 - **Terraform** – Infraestrutura como código (provider `docker`, com suporte a múltiplos ambientes).
 - **Jest** & **Supertest** – Testes unitários e de integração.
@@ -63,13 +64,17 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix, tran
 - ✅ Gerar relatórios de transações por usuário e por período
 - ✅ Consultar relatórios por usuário ou por ID do relatório
 
+### 🩺 Observabilidade
+- ✅ Health check (`GET /health`) verificando disponibilidade da API e conectividade com o PostgreSQL (`SELECT 1`), retornando `200 OK` ou `503 Service Unavailable`
+- ✅ Logs estruturados em JSON via `nestjs-pino` com `requestId` propagado por requisição (cabeçalho `x-request-id`) e mascaramento automático de CPF, senhas, tokens e credenciais de banco
+
 ---
 
 ## 🗺️ Principais Endpoints
 
 | Módulo | Base Route | Operações principais |
 | :--- | :--- | :--- |
-| **Health** | `/` | `GET /` |
+| **Health** | `/`, `/health` | `GET /`, `GET /health` (API + PostgreSQL) |
 | **Usuários** | `/users` | `POST`, `GET`, `GET /:id`, `PATCH/PUT /:id`, `DELETE /:id`, `POST /:id/login`, `POST/GET /:id/activities`, `GET /:id/login-history` |
 | **Contas** | `/bank-accounts` | `POST`, `GET`, `GET /:id`, `GET /user/:userId`, `GET/PATCH /:id/balance`, `PATCH /:id/daily-limit`, `PATCH /:id/block`, `PATCH /:id/block-fraud`, `PATCH /:id/activate`, `PATCH /:id`, `DELETE /:id` |
 | **Chaves Pix** | `/pix/keys` (ou `/pix/keys/account`) | `POST /:bankAccountId`, `POST /:bankAccountId/random`, `GET /:bankAccountId`, `PATCH/PUT /:bankAccountId/:id`, `PATCH /:bankAccountId/:id/suspend`, `PATCH /:bankAccountId/:id/unblock`, `DELETE /:bankAccountId/:id` |
@@ -187,8 +192,10 @@ projeto-pix/
 ├── src/
 │   ├── bank-account/          # Contas bancárias, saldo, limite diário e bloqueios
 │   ├── db/                    # Conexão Drizzle ORM, schema e seed
+│   ├── health/                # Health check (GET /health - API e PostgreSQL)
 │   ├── modules/usuarios/      # Usuários e histórico de logins/atividades
 │   ├── notification/          # Preferências (SMS/Email) e notificações
+│   ├── observability/         # Logger JSON (nestjs-pino), requestId e mascaramento
 │   └── pix/
 │       ├── contacts/          # Agenda de contatos com chaves Pix
 │       ├── fraud/             # Motor de detecção de fraude e testes de integração
