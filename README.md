@@ -83,3 +83,15 @@ terraform destroy -var-file=envs/dev.tfvars
 ```
 
 Cada ambiente usa portas próprias (`envs/*.tfvars`), então dev, hom e prd podem rodar juntos.
+
+---
+
+## 🔄 CI/CD (GitHub Actions)
+
+A pipeline é executada automaticamente em pushes e pull requests nas branches `main` e `develop` (além de permitir execução manual via `workflow_dispatch`):
+
+- **Testes Unitários e Build**: instala dependências (`npm ci`), roda a suíte de testes unitários (`npm test`) e compila o projeto (`npm run build`).
+- **Testes de Integração**: inicializa o ambiente completo via `docker compose up -d --build`, aguarda o endpoint de health check (`GET http://localhost:3000/`) responder e executa os 18 testes de integração do fluxo antifraude (`npm run test:integration`), realizando a limpeza dos containers ao final (`docker compose down -v`).
+- **Imagem Docker**: valida a construção das imagens multi-stage (`runtime` e `build`) a partir do [Dockerfile](file:///c:/Users/proje/Documents/code/projeto-pix/Dockerfile).
+- **Terraform**: executa `terraform fmt -check` e `terraform validate` na pasta `infra/` (*terraform plan* fica reservado para quando houver nuvem e backend remoto configurados).
+

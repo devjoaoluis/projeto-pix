@@ -1,0 +1,130 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    name: Testes Unitários e Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Executar testes unitários
+        run: npm test
+
+      - name: Executar build da aplicação
+        run: npm run build
+
+  integration-tests:
+    name: Testes de Integração (Docker Compose)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Configurar variáveis de ambiente (.env)
+        run: cp .env.example .env
+
+      - name: Subir ambiente com Docker Compose
+        run: docker compose up -d --build
+
+      - name: Aguardar API responder em http://localhost:3000
+        run: |
+          echo "Aguardando API em http://localhost:3000..."
+          READY=0
+          for i in $(seq 1 45); do
+            if curl -sf http://localhost:3000/ > /dev/null; then
+              echo "API pronta após $i tentativas!"
+              READY=1
+              break
+            fi
+            echo "Tentativa $i/45: aguardando API responder..."
+            sleep 2
+          done
+
+          if [ $READY -ne 1 ]; then
+            echo "Timeout: API não respondeu dentro do tempo limite."
+            docker compose logs
+            exit 1
+          fi
+
+      - name: Executar testes de integração (fraud-flow)
+        env:
+          API_URL: http://localhost:3000
+        run: npm run test:integration
+
+      - name: Exibir logs dos containers em caso de falha
+        if: failure()
+        run: docker compose logs
+
+      - name: Parar containers (cleanup)
+        if: always()
+        run: docker compose down -v
+
+  docker-build:
+    name: Build da Imagem Docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Build da imagem Docker (runtime)
+        run: docker build --target runtime -t pix-api:${{ github.sha }} .
+
+      - name: Build da imagem Docker (build/seed)
+        run: docker build --target build -t pix-seed:${{ github.sha }} .
+
+  terraform:
+    name: Terraform (fmt e validate)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./infra
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.5.7
+
+      - name: Verificar formatação do Terraform (fmt)
+        run: terraform fmt -check -recursive
+
+      - name: Inicializar Terraform (init)
+        # Inicializa sem backend remoto
+        run: terraform init -backend=false
+
+      - name: Validar sintaxe e configuração do Terraform (validate)
+        # Nota: 'terraform plan' fica para depois; com provider docker e estado local,
+        # o runner planejaria contra um Docker vazio. Só vale com nuvem e estado remoto.
+        run: terraform validate
