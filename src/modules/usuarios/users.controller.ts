@@ -18,6 +18,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CreateActivityLogDto } from './dto/create-activity-log.dto';
 import { FilterActivityLogsDto } from './dto/filter-activity-logs.dto';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard)
@@ -32,8 +33,8 @@ export class UsersController {
 
   @Roles('ADMIN')
   @Get()
-  async findAll() {
-    return await this.usersService.findAll();
+  async findAll(@Query() pagination?: PaginationQueryDto) {
+    return await this.usersService.findAll(pagination);
   }
 
   @Post(':id/login')

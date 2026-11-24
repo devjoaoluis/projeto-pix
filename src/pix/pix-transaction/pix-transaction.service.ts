@@ -12,6 +12,10 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { eq, sql, or, and, gte, lte, SQL, desc } from 'drizzle-orm';
 import { TransferPixDto } from './dto/transfer-pix.dto';
 import { FilterPixTransactionsDto } from './dto/filter-pix-transactions.dto';
+import {
+  PaginationQueryDto,
+  resolvePagination,
+} from '../../common/dto/pagination-query.dto';
 import { bankAccounts, pixKeys, pixTransactions } from '../../db/schema';
 import { NotificationService } from '../../notification/notification.service';
 import { FraudDetectionService } from '../fraud/fraud-detection.service';
@@ -32,8 +36,14 @@ export class PixTransactionService {
     private readonly fraudDetection: FraudDetectionService,
   ) {}
 
-  async findAll() {
-    return this.db.select().from(pixTransactions);
+  async findAll(pagination?: PaginationQueryDto) {
+    const { limit, offset } = resolvePagination(pagination);
+    return this.db
+      .select()
+      .from(pixTransactions)
+      .orderBy(desc(pixTransactions.createdAt))
+      .limit(limit)
+      .offset(offset);
   }
 
   async getTransactionsByAccountAndDate(
@@ -42,7 +52,9 @@ export class PixTransactionService {
   ) {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
-        throw new BadRequestException('endDate não pode ser menor que startDate');
+        throw new BadRequestException(
+          'endDate não pode ser menor que startDate',
+        );
       }
     }
 
@@ -57,18 +69,25 @@ export class PixTransactionService {
     );
 
     if (filterDto.startDate) {
-      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+      conditions.push(
+        gte(pixTransactions.createdAt, new Date(filterDto.startDate)),
+      );
     }
 
     if (filterDto.endDate) {
-      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+      conditions.push(
+        lte(pixTransactions.createdAt, new Date(filterDto.endDate)),
+      );
     }
 
+    const { limit, offset } = resolvePagination(filterDto);
     return this.db
       .select()
       .from(pixTransactions)
       .where(and(...conditions))
-      .orderBy(pixTransactions.createdAt);
+      .orderBy(pixTransactions.createdAt)
+      .limit(limit)
+      .offset(offset);
   }
 
   /**
@@ -114,11 +133,14 @@ export class PixTransactionService {
       conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
     }
 
+    const { limit, offset } = resolvePagination(filterDto);
     const rows = await this.db
       .select()
       .from(pixTransactions)
       .where(and(...conditions))
-      .orderBy(desc(pixTransactions.createdAt));
+      .orderBy(desc(pixTransactions.createdAt))
+      .limit(limit)
+      .offset(offset);
 
     const transactions: HistoryTransaction[] = rows.map((tx) => {
       const direction = this.resolveDirection(tx, bankAccountId);
@@ -143,6 +165,8 @@ export class PixTransactionService {
       bankAccountId,
       currentBalance: account.balance,
       count: transactions.length,
+      limit,
+      offset,
       transactions,
     };
   }

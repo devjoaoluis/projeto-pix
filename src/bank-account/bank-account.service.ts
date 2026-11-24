@@ -6,10 +6,14 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 
 import { accountPermissions, bankAccounts, users } from '../db/schema';
+import {
+  PaginationQueryDto,
+  resolvePagination,
+} from '../common/dto/pagination-query.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import {
   BankAccountStatus,
@@ -49,8 +53,14 @@ export class BankAccountService {
     return bankAccount;
   }
 
-  async findAll() {
-    return this.db.select().from(bankAccounts);
+  async findAll(pagination?: PaginationQueryDto) {
+    const { limit, offset } = resolvePagination(pagination);
+    return this.db
+      .select()
+      .from(bankAccounts)
+      .orderBy(desc(bankAccounts.createdAt))
+      .limit(limit)
+      .offset(offset);
   }
 
   async findById(id: string) {

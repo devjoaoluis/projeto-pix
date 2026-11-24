@@ -328,7 +328,7 @@ describe('Security, JWT Auth, Ownership & Hardening', () => {
           role: 'USER',
         });
         await request(app.getHttpServer())
-          .patch('/pix/tx-1/simulate-payment')
+          .patch('/pix/77777777-7777-4777-8777-777777777777/simulate-payment')
           .set('Authorization', `Bearer ${prodToken}`)
           .expect(403);
       } finally {

@@ -4,9 +4,9 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
-  Put,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -16,150 +16,91 @@ import { CreatePixKeyDto } from './dto/create-pix-key.dto';
 import { UpdatePixKeyDto } from './dto/update-pix-key.dto';
 import { SuspendPixKeyDto } from './dto/suspend-pix-key.dto';
 
-@Controller(['pix/keys/account', 'pix/keys'])
+@Controller('pix/keys')
 @UseGuards(JwtAuthGuard, AccountAccessGuard)
 export class PixKeyController {
   constructor(private readonly pixKeyService: PixKeyService) {}
 
-  @Post(':bankAccountId')
+  @Post('account/:bankAccountId')
   create(
-    @Param('bankAccountId') bankAccountId: string,
+    @Param('bankAccountId', ParseUUIDPipe) bankAccountId: string,
     @Body() dto: CreatePixKeyDto,
   ) {
     return this.pixKeyService.create(bankAccountId, dto);
   }
 
-  @Get(':bankAccountId')
-  findByAccount(@Param('bankAccountId') bankAccountId: string) {
+  @Get('account/:bankAccountId')
+  findByAccount(@Param('bankAccountId', ParseUUIDPipe) bankAccountId: string) {
     return this.pixKeyService.findByAccount(bankAccountId);
   }
 
-  @Post(':bankAccountId/random')
-  generateRandomKey(@Param('bankAccountId') bankAccountId: string) {
+  @Post('account/:bankAccountId/random')
+  generateRandomKey(
+    @Param('bankAccountId', ParseUUIDPipe) bankAccountId: string,
+  ) {
     return this.pixKeyService.generateRandomKey(bankAccountId);
   }
 
-  @Patch(':bankAccountId/:id')
+  @Patch('account/:bankAccountId/:id')
   update(
-    @Param('bankAccountId') bankAccountId: string,
-    @Param('id') id: string,
+    @Param('bankAccountId', ParseUUIDPipe) bankAccountId: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdatePixKeyDto,
   ) {
     return this.pixKeyService.update(bankAccountId, id, dto);
   }
 
-  @Put(':bankAccountId/:id')
-  updatePut(
-    @Param('bankAccountId') bankAccountId: string,
-    @Param('id') id: string,
-    @Body() dto: UpdatePixKeyDto,
-  ) {
-    return this.pixKeyService.update(bankAccountId, id, dto);
-  }
-
-  @Patch(':bankAccountId/:id/random')
+  @Patch('account/:bankAccountId/:id/random')
   updateRandomKey(
-    @Param('bankAccountId') bankAccountId: string,
-    @Param('id') id: string,
+    @Param('bankAccountId', ParseUUIDPipe) bankAccountId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.pixKeyService.updateRandomKey(bankAccountId, id);
   }
 
-  @Patch(':bankAccountId/:id/unblock')
-  unblock(
-    @Param('bankAccountId') bankAccountId: string,
-    @Param('id') id: string,
-  ) {
-    return this.pixKeyService.unblock(bankAccountId, id);
-  }
-
-  @Put(':bankAccountId/:id/unblock')
-  unblockPut(
-    @Param('bankAccountId') bankAccountId: string,
-    @Param('id') id: string,
-  ) {
-    return this.pixKeyService.unblock(bankAccountId, id);
-  }
-
-  @Patch(':bankAccountId/:id/desbloquear')
-  desbloquear(
-    @Param('bankAccountId') bankAccountId: string,
-    @Param('id') id: string,
-  ) {
-    return this.pixKeyService.unblock(bankAccountId, id);
-  }
-
-  @Patch(':bankAccountId/:id/activate')
-  activate(
-    @Param('bankAccountId') bankAccountId: string,
-    @Param('id') id: string,
-  ) {
-    return this.pixKeyService.unblock(bankAccountId, id);
-  }
-
-  @Patch(':bankAccountId/:id/suspend')
+  @Patch('account/:bankAccountId/:id/suspend')
   suspend(
-    @Param('bankAccountId') bankAccountId: string,
-    @Param('id') id: string,
+    @Param('bankAccountId', ParseUUIDPipe) bankAccountId: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto?: SuspendPixKeyDto,
   ) {
     return this.pixKeyService.suspend(bankAccountId, id, dto?.reason);
   }
 
-  @Patch(':bankAccountId/:id/block')
-  block(
-    @Param('bankAccountId') bankAccountId: string,
-    @Param('id') id: string,
-    @Body() dto?: SuspendPixKeyDto,
+  @Patch('account/:bankAccountId/:id/unblock')
+  unblock(
+    @Param('bankAccountId', ParseUUIDPipe) bankAccountId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.pixKeyService.suspend(bankAccountId, id, dto?.reason);
+    return this.pixKeyService.unblock(bankAccountId, id);
   }
 
-  @Patch(':id/unblock')
-  unblockById(@Param('id') id: string) {
-    return this.pixKeyService.unblockWithoutAccount(id);
-  }
-
-  @Put(':id/unblock')
-  unblockByIdPut(@Param('id') id: string) {
-    return this.pixKeyService.unblockWithoutAccount(id);
-  }
-
-  @Patch(':id/desbloquear')
-  desbloquearById(@Param('id') id: string) {
-    return this.pixKeyService.unblockWithoutAccount(id);
-  }
-
-  @Patch(':id/activate')
-  activateById(@Param('id') id: string) {
-    return this.pixKeyService.unblockWithoutAccount(id);
+  @Delete('account/:bankAccountId/:id')
+  remove(
+    @Param('bankAccountId', ParseUUIDPipe) bankAccountId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.pixKeyService.remove(bankAccountId, id);
   }
 
   @Patch(':id/suspend')
-  suspendById(@Param('id') id: string, @Body() dto?: SuspendPixKeyDto) {
+  suspendById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto?: SuspendPixKeyDto,
+  ) {
     return this.pixKeyService.suspendWithoutAccount(id, dto?.reason);
   }
 
-  @Patch(':id/block')
-  blockById(@Param('id') id: string, @Body() dto?: SuspendPixKeyDto) {
-    return this.pixKeyService.suspendWithoutAccount(id, dto?.reason);
+  @Patch(':id/unblock')
+  unblockById(@Param('id', ParseUUIDPipe) id: string) {
+    return this.pixKeyService.unblockWithoutAccount(id);
   }
 
   @Patch(':id')
-  updateById(@Param('id') id: string, @Body() dto: UpdatePixKeyDto) {
-    return this.pixKeyService.updateWithoutAccount(id, dto);
-  }
-
-  @Put(':id')
-  updateByIdPut(@Param('id') id: string, @Body() dto: UpdatePixKeyDto) {
-    return this.pixKeyService.updateWithoutAccount(id, dto);
-  }
-
-  @Delete(':bankAccountId/:id')
-  remove(
-    @Param('bankAccountId') bankAccountId: string,
-    @Param('id') id: string,
+  updateById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePixKeyDto,
   ) {
-    return this.pixKeyService.remove(bankAccountId, id);
+    return this.pixKeyService.updateWithoutAccount(id, dto);
   }
 }

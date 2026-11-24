@@ -1,4 +1,8 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  PaginationQueryDto,
+  resolvePagination,
+} from '../common/dto/pagination-query.dto';
 import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
 
 export type NotificationChannel = 'IN_APP' | 'SMS' | 'EMAIL';
@@ -179,11 +183,25 @@ export class NotificationService {
     return notification;
   }
 
-  getByAccountId(accountId: string): TransactionNotification[] {
-    return this.notifications.filter((n) => n.accountId === accountId);
+  getByAccountId(
+    accountId: string,
+    pagination?: PaginationQueryDto,
+  ): TransactionNotification[] {
+    const filtered = this.notifications.filter(
+      (n) => n.accountId === accountId,
+    );
+    if (!pagination || (pagination.limit === undefined && pagination.offset === undefined)) {
+      return filtered;
+    }
+    const { limit, offset } = resolvePagination(pagination);
+    return filtered.slice(offset, offset + limit);
   }
 
-  getAll(): TransactionNotification[] {
-    return this.notifications;
+  getAll(pagination?: PaginationQueryDto): TransactionNotification[] {
+    if (!pagination || (pagination.limit === undefined && pagination.offset === undefined)) {
+      return this.notifications;
+    }
+    const { limit, offset } = resolvePagination(pagination);
+    return this.notifications.slice(offset, offset + limit);
   }
 }
