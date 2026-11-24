@@ -198,3 +198,25 @@ describe('UpdateUserDto', () => {
     expect(await check({ phone: '1'.repeat(21) })).not.toHaveLength(0);
   });
 });
+
+describe('CreateUserDto: validação de CPF', () => {
+  const base = {
+    name: 'Ana',
+    email: 'a@a.com',
+    phone: '11999999999',
+  };
+  const check = (cpf: string) =>
+    validate(plainToInstance(CreateUserDto, { ...base, cpf }) as object);
+
+  it('aceita CPF válido', async () => {
+    expect(await check('52998224725')).toHaveLength(0);
+  });
+
+  it('rejeita CPF com dígito verificador errado', async () => {
+    expect(await check('52998224726')).not.toHaveLength(0);
+  });
+
+  it('rejeita CPF com todos os dígitos iguais', async () => {
+    expect(await check('11111111111')).not.toHaveLength(0);
+  });
+});
