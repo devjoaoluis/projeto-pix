@@ -4,14 +4,24 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
-} from "@nestjs/common";
-import { ReceivePixDto } from "./dto/receive-pix.dto";
-import { NodePgDatabase } from "drizzle-orm/node-postgres";
-import { eq, sql, or, and, gte, lte, SQL } from 'drizzle-orm';
-import { TransferPixDto } from "./dto/transfer-pix.dto";
-import { FilterPixTransactionsDto } from "./dto/filter-pix-transactions.dto";
-import { bankAccounts, pixKeys, pixTransactions } from "../../db/schema";
-import { NotificationService } from "../../notification/notification.service";
+  HttpException,
+  Logger,
+} from '@nestjs/common';
+import { ReceivePixDto } from './dto/receive-pix.dto';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import { eq, sql, or, and, gte, lte, SQL, desc } from 'drizzle-orm';
+import { TransferPixDto } from './dto/transfer-pix.dto';
+import { FilterPixTransactionsDto } from './dto/filter-pix-transactions.dto';
+import { bankAccounts, pixKeys, pixTransactions } from '../../db/schema';
+import { NotificationService } from '../../notification/notification.service';
+import { FraudDetectionService } from '../fraud/fraud-detection.service';
+import {
+  HistoryResponse,
+  HistoryTransaction,
+  TransactionDirection,
+} from './dto/history-response.dto';
+import { Cron, CronExpression } from '@nestjs/schedule';
+import { SchedulePixDto } from './dto/schedule-pix.dto';
 
 @Injectable()
 export class PixTransactionService {
@@ -19,13 +29,17 @@ export class PixTransactionService {
     @Inject('DRIZZLE')
     private readonly db: NodePgDatabase<Record<string, never>>,
     private readonly notificationService: NotificationService,
-  )
+    private readonly fraudDetection: FraudDetectionService,
+  ) {}
 
   async findAll() {
     return this.db.select().from(pixTransactions);
   }
 
-  async getTransactionsByAccountAndDate(bankAccountId: string, filterDto: FilterPixTransactionsDto) {
+  async getTransactionsByAccountAndDate(
+    bankAccountId: string,
+    filterDto: FilterPixTransactionsDto,
+  ) {
     if (filterDto.startDate && filterDto.endDate) {
       if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
         throw new BadRequestException('endDate não pode ser menor que startDate');
@@ -33,13 +47,13 @@ export class PixTransactionService {
     }
 
     const conditions: (SQL<unknown> | undefined)[] = [];
-    
+
     conditions.push(
       or(
         eq(pixTransactions.bankAccountId, bankAccountId),
         eq(pixTransactions.senderAccountId, bankAccountId),
-        eq(pixTransactions.receiverAccountId, bankAccountId)
-      )
+        eq(pixTransactions.receiverAccountId, bankAccountId),
+      ),
     );
 
     if (filterDto.startDate) {
@@ -57,8 +71,117 @@ export class PixTransactionService {
       .orderBy(pixTransactions.createdAt);
   }
 
+  /**
+   * Histórico de transações de uma conta.
+   * Retorna todas as operações PIX que passaram pela conta (enviadas,
+   * recebidas e cobranças), com o `direction` calculado em relação à
+   * conta que está consultando.
+   */
+  async getHistory(
+    bankAccountId: string,
+    filterDto: FilterPixTransactionsDto,
+  ): Promise<HistoryResponse> {
+    if (filterDto.startDate && filterDto.endDate) {
+      if (new Date(filterDto.endDate) < new Date(filterDto.startDate)) {
+        throw new BadRequestException('endDate não pode ser menor que startDate');
+      }
+    }
 
-  async transfer(senderAccountId: string, dto: TransferPixDto) {
+    const [account] = await this.db
+      .select()
+      .from(bankAccounts)
+      .where(eq(bankAccounts.id, bankAccountId));
+
+    if (!account) {
+      throw new NotFoundException('Conta bancária não encontrada');
+    }
+
+    const conditions: (SQL<unknown> | undefined)[] = [];
+
+    conditions.push(
+      or(
+        eq(pixTransactions.bankAccountId, bankAccountId),
+        eq(pixTransactions.senderAccountId, bankAccountId),
+        eq(pixTransactions.receiverAccountId, bankAccountId),
+      ),
+    );
+
+    if (filterDto.startDate) {
+      conditions.push(gte(pixTransactions.createdAt, new Date(filterDto.startDate)));
+    }
+
+    if (filterDto.endDate) {
+      conditions.push(lte(pixTransactions.createdAt, new Date(filterDto.endDate)));
+    }
+
+    const rows = await this.db
+      .select()
+      .from(pixTransactions)
+      .where(and(...conditions))
+      .orderBy(desc(pixTransactions.createdAt));
+
+    const transactions: HistoryTransaction[] = rows.map((tx) => {
+      const direction = this.resolveDirection(tx, bankAccountId);
+      const counterpartAccountId = this.resolveCounterpart(tx, bankAccountId);
+
+      return {
+        id: tx.id,
+        type: tx.type,
+        status: tx.status,
+        amount: tx.amount,
+        description: tx.description ?? null,
+        direction,
+        counterpartAccountId,
+        senderAccountId: tx.senderAccountId ?? null,
+        receiverAccountId: tx.receiverAccountId ?? null,
+        bankAccountId: tx.bankAccountId ?? null,
+        createdAt: tx.createdAt,
+      };
+    });
+
+    return {
+      bankAccountId,
+      currentBalance: account.balance,
+      count: transactions.length,
+      transactions,
+    };
+  }
+
+  private resolveDirection(
+    tx: {
+      senderAccountId?: string | null;
+      receiverAccountId?: string | null;
+      bankAccountId?: string | null;
+      type: string;
+    },
+    queriedAccountId: string,
+  ): TransactionDirection {
+    if (tx.senderAccountId === queriedAccountId) return 'SENT';
+    if (tx.receiverAccountId === queriedAccountId) return 'RECEIVED';
+    if (tx.bankAccountId === queriedAccountId && tx.type === 'PIX_CHARGE') {
+      return 'CHARGE';
+    }
+    return 'UNKNOWN';
+  }
+
+  private resolveCounterpart(
+    tx: {
+      senderAccountId?: string | null;
+      receiverAccountId?: string | null;
+    },
+    queriedAccountId: string,
+  ): string | null {
+    if (tx.senderAccountId === queriedAccountId) {
+      return tx.receiverAccountId ?? null;
+    }
+    if (tx.receiverAccountId === queriedAccountId) {
+      return tx.senderAccountId ?? null;
+    }
+    return null;
+  }
+
+  // scheduledTransactionId: executa um agendamento existente em vez de criar uma transação nova.
+  async transfer(senderAccountId: string, dto: TransferPixDto, scheduledTransactionId?: string) {
     const senderAccount = await this.getSenderAccount(senderAccountId, dto.amount);
     const receiverPixKey = await this.resolvePixKey(dto.pixKey);
     const receiverAccount = await this.getReceiverAccount(receiverPixKey.bankAccountId);
@@ -72,13 +195,41 @@ export class PixTransactionService {
     }
 
     const transaction = await this.db.transaction(async (tx) => {
-      await tx.update(bankAccounts)
+      // Débito condicional: o saldo conferido em getSenderAccount pode ter mudado até aqui.
+      const debited = await tx.update(bankAccounts)
         .set({ balance: sql`balance - ${dto.amount}` })
-        .where(eq(bankAccounts.id, senderAccount.id));
+        .where(and(
+          eq(bankAccounts.id, senderAccount.id),
+          sql`${bankAccounts.balance} >= ${dto.amount}`,
+        ))
+        .returning({ id: bankAccounts.id });
 
-      await tx.update(bankAccounts)
+      if (debited.length === 0) {
+        throw new BadRequestException('Saldo insuficiente');
+      }
+
+      await tx
+        .update(bankAccounts)
         .set({ balance: sql`balance + ${dto.amount}` })
         .where(eq(bankAccounts.id, receiverAccount.id));
+
+      if (scheduledTransactionId) {
+        // Só executa se ainda estiver SCHEDULED: impede execução dupla e desfaz o débito se perder a corrida.
+        const [executed] = await tx.update(pixTransactions)
+          // createdAt passa a ser o momento da execução: extrato, relatórios e limite diário contam por ele.
+          .set({ status: 'COMPLETED', receiverAccountId: receiverAccount.id, createdAt: new Date() })
+          .where(and(
+            eq(pixTransactions.id, scheduledTransactionId),
+            eq(pixTransactions.status, 'SCHEDULED'),
+          ))
+          .returning();
+
+        if (!executed) {
+          throw new ConflictException('Agendamento já executado ou cancelado');
+        }
+
+        return executed;
+      }
 
       const [inserted] = await tx.insert(pixTransactions)
         .values({
@@ -90,13 +241,14 @@ export class PixTransactionService {
           status: 'COMPLETED',
           type: 'TRANSFER',
           idempotencyKey: dto.idempotencyKey,
+          latitude: dto.latitude,
+          longitude: dto.longitude,
         })
         .returning();
 
       return inserted;
     });
 
-    // Notifica o remetente que o PIX foi enviado
     const senderNotification = this.notificationService.notify(
       senderAccount.id,
       transaction.id,
@@ -105,7 +257,6 @@ export class PixTransactionService {
       dto.description,
     );
 
-    // Notifica o destinatário que recebeu um PIX
     const receiverNotification = this.notificationService.notify(
       receiverAccount.id,
       transaction.id,
@@ -114,51 +265,84 @@ export class PixTransactionService {
       dto.description,
     );
 
+    let fraudEvaluation: Awaited<
+      ReturnType<FraudDetectionService['evaluateTransfer']>
+    > | null = null;
+    try {
+      fraudEvaluation = await this.fraudDetection.evaluateTransfer(transaction);
+    } catch {
+      // silencioso — o FraudDetectionService já loga internamente
+    }
+
     return {
       transaction,
       notifications: {
         sender: senderNotification,
         receiver: receiverNotification,
       },
+      fraudEvaluation,
     };
-  }  
+  }
 
-    async cancel(transactionId: string) {
+  async cancel(transactionId: string) {
+    const [transaction] = await this.db
+      .select()
+      .from(pixTransactions)
+      .where(eq(pixTransactions.id, transactionId));
 
-      const [transaction] = await this.db
-        .select()
-        .from(picTransactions)
-        .where(eq(pixTransactions.id, transcationId));
+    if (!transaction) {
+      throw new NotFoundException('Transação não encontrada');
+    }
 
-      if (!transaction) {
-        throw new NotFoundException('Transação não encontrada');
+    if (transaction.status === 'CANCELED') {
+      throw new BadRequestException('Esta transação já está cancelada');
+    }
+
+    if (transaction.status === 'FAILED') {
+      throw new BadRequestException('Transação que falhou não pode ser cancelada');
+    }
+
+    const result = await this.db.transaction(async (tx) => {
+      // O filtro por status impede dois cancelamentos simultâneos de estornarem em dobro
+      const [canceledTransaction] = await tx
+        .update(pixTransactions)
+        .set({ status: 'CANCELED' })
+        .where(
+          and(
+            eq(pixTransactions.id, transactionId),
+            eq(pixTransactions.status, transaction.status),
+          ),
+        )
+        .returning();
+
+      if (!canceledTransaction) {
+        throw new ConflictException('A transação foi alterada por outra operação');
       }
-
-      if (transaction.status !== 'CANCELED') {
-        throw new BadRequestException('Esta transação já está cancelada');
-      }
-
-      const result = await this.db.transaction(async (tx) => {
-
-        const [canceledTransaction] = await tx
-          .update(pixTransactions)
-          .set({ status: 'CANCELED' })
-          .where(eq(pixTransactions.id, transactionId))
-          .returning();
 
       if (transaction.status === 'COMPLETED') {
-        
+        if (transaction.receiverAccountId) {
+          // Débito condicional: só passa se o recebedor ainda tiver o valor
+          const [debited] = await tx
+            .update(bankAccounts)
+            .set({ balance: sql`balance - ${transaction.amount}` })
+            .where(
+              and(
+                eq(bankAccounts.id, transaction.receiverAccountId),
+                gte(bankAccounts.balance, transaction.amount),
+              ),
+            )
+            .returning({ id: bankAccounts.id });
+
+          if (!debited) {
+            throw new BadRequestException('Saldo do recebedor insuficiente para o estorno');
+          }
+        }
+
         if (transaction.senderAccountId) {
-          await tx.update(bankAccounts)
+          await tx
+            .update(bankAccounts)
             .set({ balance: sql`balance + ${transaction.amount}` })
             .where(eq(bankAccounts.id, transaction.senderAccountId));
-        }
-      
-
-        if (transaction.receiverAccountId) {
-          await tx.update(bankAccounts)
-            .set({ balance: sql`balance - ${transaction.amount}` })
-            .where(eq(bankAccounts.id, transaction.receiverAccountId));
         }
       }
 
@@ -170,7 +354,7 @@ export class PixTransactionService {
         transaction.senderAccountId,
         transaction.id,
         'CANCELED',
-        transaction.amount,
+        Number(transaction.amount),
         'A sua transação foi cancelada',
       );
     }
@@ -180,7 +364,7 @@ export class PixTransactionService {
         transaction.receiverAccountId,
         transaction.id,
         'CANCELED',
-        transaction.amount,
+        Number(transaction.amount),
         'Transação recebida foi cancelada',
       );
     }
@@ -198,11 +382,13 @@ export class PixTransactionService {
     if (existing) return existing;
 
     const transaction = await this.db.transaction(async (tx) => {
-      await tx.update(bankAccounts)
+      await tx
+        .update(bankAccounts)
         .set({ balance: sql`balance + ${dto.amount}` })
         .where(eq(bankAccounts.id, pixKey.bankAccountId));
 
-      const [inserted] = await tx.insert(pixTransactions)
+      const [inserted] = await tx
+        .insert(pixTransactions)
         .values({
           receiverAccountId: pixKey.bankAccountId,
           pixKeyId: pixKey.id,
@@ -217,7 +403,6 @@ export class PixTransactionService {
       return inserted;
     });
 
-    // Notifica a conta que recebeu o PIX via webhook
     const notification = this.notificationService.notify(
       pixKey.bankAccountId,
       transaction.id,
@@ -229,7 +414,7 @@ export class PixTransactionService {
     return {
       transaction,
       notification,
-    }
+    };
   }
 
   private async getSenderAccount(accountId: string, amount: number) {
@@ -246,8 +431,26 @@ export class PixTransactionService {
       throw new BadRequestException('Conta do remetente está bloqueada ou inativa');
     }
 
-    if (parseFloat(account.balance) < amount) {
-      throw new BadRequestException('Saldo insuficiente');
+    if (account.dailyLimit != null) {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+
+      // Só COMPLETED conta: transação estornada (CANCELED) devolve o limite
+      // shortcut: sem lock, duas transferências simultâneas podem passar do limite; usar SELECT ... FOR UPDATE se virar problema
+      const [{ total }] = await this.db
+        .select({ total: sql<string>`coalesce(sum(${pixTransactions.amount}), 0)` })
+        .from(pixTransactions)
+        .where(and(
+          eq(pixTransactions.senderAccountId, account.id),
+          eq(pixTransactions.status, 'COMPLETED'),
+          gte(pixTransactions.createdAt, startOfDay),
+        ));
+
+      // Compara em centavos: em float, 0.1 + 0.2 > 0.3
+      const cents = (value: number) => Math.round(value * 100);
+      if (cents(Number(total) + amount) > cents(Number(account.dailyLimit))) {
+        throw new BadRequestException('Limite diário de transações excedido');
+      }
     }
 
     return account;
@@ -303,5 +506,98 @@ export class PixTransactionService {
       .where(eq(pixTransactions.idempotencyKey, externalTransactionId));
 
     return transaction;
+  }
+
+  private readonly logger = new Logger(PixTransactionService.name);
+
+  async schedule(senderAccountId: string, dto: SchedulePixDto) {
+    const scheduledAt = new Date(dto.scheduledAt);
+    if (scheduledAt <= new Date()) {
+      throw new BadRequestException('scheduledAt deve ser uma data futura');
+    }
+
+    // Valor 0: nada é debitado agora; saldo e limite diário valem na execução.
+    await this.getSenderAccount(senderAccountId, 0);
+    const receiverPixKey = await this.resolvePixKey(dto.pixKey);
+
+    if (receiverPixKey.bankAccountId === senderAccountId) {
+      throw new BadRequestException('Não é possível transferir para si mesmo');
+    }
+
+    if (dto.idempotencyKey) {
+      await this.checkIdempotency(dto.idempotencyKey);
+    }
+
+    const [scheduled] = await this.db.insert(pixTransactions)
+      .values({
+        // receiverAccountId só é preenchido na execução: até lá o destinatário não vê nem é notificado.
+        senderAccountId,
+        pixKeyId: receiverPixKey.id,
+        amount: dto.amount.toString(),
+        description: dto.description,
+        status: 'SCHEDULED',
+        type: 'TRANSFER',
+        idempotencyKey: dto.idempotencyKey,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        scheduledAt,
+      })
+      .returning();
+
+    return scheduled;
+  }
+
+  async getScheduled(bankAccountId: string) {
+    return this.db
+      .select()
+      .from(pixTransactions)
+      .where(and(
+        eq(pixTransactions.senderAccountId, bankAccountId),
+        eq(pixTransactions.status, 'SCHEDULED'),
+      ))
+      .orderBy(pixTransactions.scheduledAt);
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async runDueScheduled() {
+    const due = await this.db
+      .select({ transaction: pixTransactions, pixKey: pixKeys.key })
+      .from(pixTransactions)
+      .innerJoin(pixKeys, eq(pixKeys.id, pixTransactions.pixKeyId))
+      .where(and(
+        eq(pixTransactions.status, 'SCHEDULED'),
+        lte(pixTransactions.scheduledAt, new Date()),
+      ));
+
+    for (const { transaction, pixKey } of due) {
+      const senderAccountId = transaction.senderAccountId as string;
+      const amount = parseFloat(transaction.amount);
+
+      try {
+        await this.transfer(
+          senderAccountId,
+          { pixKey, amount, description: transaction.description ?? undefined },
+          transaction.id,
+        );
+      } catch (error) {
+        if (!(error instanceof HttpException)) {
+          // Erro de infraestrutura: continua SCHEDULED e é tentado de novo no próximo ciclo.
+          this.logger.error(`Falha ao executar o agendamento ${transaction.id}`, error);
+          continue;
+        }
+
+        const [failed] = await this.db.update(pixTransactions)
+          .set({ status: 'FAILED' })
+          .where(and(
+            eq(pixTransactions.id, transaction.id),
+            eq(pixTransactions.status, 'SCHEDULED'),
+          ))
+          .returning();
+
+        if (failed) {
+          this.notificationService.notify(senderAccountId, transaction.id, 'FAILED', amount, error.message);
+        }
+      }
+    }
   }
 }

@@ -61,6 +61,7 @@ async function main() {
     console.log('Seeding completed!');
   } catch (error) {
     console.error('Error during seeding:', error);
+    process.exitCode = 1; // faz o container do seed falhar e a API não subir sem dados
   } finally {
     await pool.end();
   }

@@ -27,6 +27,56 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 - **Método**: `GET`
 - **Rota**: `/users/:id`
 
+### Atualizar Dados do Usuário (#43)
+- **Método**: `PATCH` ou `PUT`
+- **Rota**: `/users/:id`
+- **Body** (JSON):
+```json
+{
+  "name": "Luis Gomes Atualizado",
+  "email": "luis.novo@gmail.com",
+  "phone": "11988887777"
+}
+```
+
+### Remover Usuário (#44)
+- **Método**: `DELETE`
+- **Rota**: `/users/:id`
+*(Remove o usuário e, em cascata, todas as suas contas bancárias, chaves Pix, transações, contatos, logs de atividade e relatórios vinculados)*
+
+### Registrar Login do Usuário
+- **Método**: `POST`
+- **Rota**: `/users/:id/login`
+- **Body** (JSON opcional):
+```json
+{
+  "ipAddress": "192.168.1.10",
+  "device": "App Mobile iOS",
+  "description": "Login via biometria"
+}
+```
+
+### Registrar Atividade do Usuário
+- **Método**: `POST`
+- **Rota**: `/users/:id/activities`
+- **Body** (JSON):
+```json
+{
+  "type": "KEY_CHANGE",
+  "description": "Alteração de chave PIX associada",
+  "ipAddress": "192.168.1.10",
+  "device": "Web Browser Chrome"
+}
+```
+
+### Consultar Histórico de Atividades do Usuário
+- **Método**: `GET`
+- **Rota**: `/users/:id/activities?type=LOGIN&startDate=2026-09-01T00:00:00Z&endDate=2026-09-30T23:59:59Z`
+
+### Consultar Histórico de Logins do Usuário
+- **Método**: `GET`
+- **Rota**: `/users/:id/login-history`
+
 ---
 
 ## 2. Contas Bancárias (`/bank-accounts`)
@@ -110,6 +160,35 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 ### Gerar Chave Pix Aleatória
 - **Método**: `POST`
 - **Rota**: `/pix/keys/account/:bankAccountId/random`
+
+### Alterar Chave Pix Associada
+- **Método**: `PATCH` ou `PUT`
+- **Rota**: `/pix/keys/account/:bankAccountId/:idDaChave` (ou `/pix/keys/:idDaChave`)
+- **Body** (JSON):
+```json
+{
+  "key": "novoemail@email.com"
+}
+```
+*Observação: Pode-se alterar o valor da chave (`key`) e/ou a conta bancária associada (`bankAccountId` ou `newBankAccountId`).*
+
+### Alterar Chave Pix para Nova Chave Aleatória
+- **Método**: `PATCH`
+- **Rota**: `/pix/keys/account/:bankAccountId/:idDaChave/random`
+
+### Desbloquear Chave Pix Suspensa
+- **Método**: `PATCH` ou `PUT`
+- **Rota**: `/pix/keys/account/:bankAccountId/:idDaChave/unblock` (ou `/pix/keys/:idDaChave/unblock`, `/pix/keys/account/:bankAccountId/:idDaChave/desbloquear`)
+
+### Suspender Chave Pix
+- **Método**: `PATCH`
+- **Rota**: `/pix/keys/account/:bankAccountId/:idDaChave/suspend` (ou `/pix/keys/:idDaChave/suspend`)
+- **Body** (JSON opcional):
+```json
+{
+  "reason": "Suspeita de fraude ou solicitação do cliente"
+}
+```
 
 ### Remover Chave Pix
 - **Método**: `DELETE`
@@ -219,3 +298,59 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 ### Listar Notificações de uma Conta Específica
 - **Método**: `GET`
 - **Rota**: `/notifications/:accountId`
+
+### Consultar Preferências de Notificação (SMS / Email)
+- **Método**: `GET`
+- **Rota**: `/notifications/:accountId/preferences`
+
+### Habilitar / Configurar Notificação por SMS ou Email
+- **Método**: `PATCH`
+- **Rota**: `/notifications/:accountId/preferences`
+- **Body** (JSON):
+```json
+{
+  "smsEnabled": true,
+  "emailEnabled": true,
+  "phone": "11999999999",
+  "email": "joao@email.com"
+}
+```
+
+---
+
+## 8. Contatos Pix (`/pix/contacts`)
+
+### Adicionar Contato Integrado com Chave Pix
+- **Método**: `POST`
+- **Rota**: `/pix/contacts/user/:userId`
+- **Body** (JSON):
+```json
+{
+  "name": "Maria Oliveira",
+  "nickname": "Maria",
+  "email": "maria@email.com",
+  "phone": "11988887777"
+}
+```
+
+### Listar Contatos do Usuário
+- **Método**: `GET`
+- **Rota**: `/pix/contacts/user/:userId`
+
+### Sincronizar Contatos da Agenda com Chaves Pix Ativas
+- **Método**: `POST`
+- **Rota**: `/pix/contacts/user/:userId/sync`
+- **Body** (JSON):
+```json
+{
+  "identifiers": ["maria@email.com", "11988887777", "12345678901"]
+}
+```
+
+### Atualizar Contato
+- **Método**: `PATCH`
+- **Rota**: `/pix/contacts/user/:userId/:contactId`
+
+### Remover Contato
+- **Método**: `DELETE`
+- **Rota**: `/pix/contacts/user/:userId/:contactId`

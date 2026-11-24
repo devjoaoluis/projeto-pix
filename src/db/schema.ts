@@ -4,6 +4,7 @@ import {
   varchar,
   numeric,
   integer,
+  doublePrecision,
   timestamp,
   text,
   uniqueIndex,
@@ -18,6 +19,18 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+export const userActivityLogs = pgTable('user_activity_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id),
+  type: varchar('type', { length: 50 }).notNull(),
+  description: varchar('description', { length: 255 }).notNull(),
+  ipAddress: varchar('ip_address', { length: 45 }),
+  device: varchar('device', { length: 255 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export const bankAccounts = pgTable(
   'bank_accounts',
   {
@@ -29,6 +42,10 @@ export const bankAccounts = pgTable(
       .default('0')
       .notNull(),
     status: varchar('status', { length: 20 }).default('ACTIVE').notNull(),
+    blockedReason: varchar('blocked_reason', { length: 255 }),
+    blockedAt: timestamp('blocked_at'),
+    // null = sem limite diário
+    dailyLimit: numeric('daily_limit', { precision: 15, scale: 2 }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
@@ -44,10 +61,32 @@ export const pixKeys = pgTable(
       .references(() => bankAccounts.id),
     key: varchar('key', { length: 255 }).notNull(),
     type: varchar('type', { length: 20 }).notNull(),
+    status: varchar('status', { length: 20 }).default('ACTIVE').notNull(),
+    suspendedReason: varchar('suspended_reason', { length: 255 }),
+    suspendedAt: timestamp('suspended_at'),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (table) => [uniqueIndex('pix_key_unique').on(table.key)],
 );
+
+export const userContacts = pgTable('user_contacts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  ownerUserId: uuid('owner_user_id')
+    .notNull()
+    .references(() => users.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  nickname: varchar('nickname', { length: 100 }),
+  phone: varchar('phone', { length: 20 }),
+  email: varchar('email', { length: 255 }),
+  cpf: varchar('cpf', { length: 14 }),
+  pixKey: varchar('pix_key', { length: 255 }).notNull(),
+  pixKeyType: varchar('pix_key_type', { length: 20 }).notNull(),
+  pixKeyId: uuid('pix_key_id').references(() => pixKeys.id),
+  contactBankAccountId: uuid('contact_bank_account_id').references(
+    () => bankAccounts.id,
+  ),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
 
 export const pixTransactions = pgTable('pix_transactions', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -63,6 +102,9 @@ export const pixTransactions = pgTable('pix_transactions', {
   pixKeyId: uuid('pix_key_id').references(() => pixKeys.id),
   type: varchar('type', { length: 10 }).notNull(),
   idempotencyKey: varchar('idempotency_key', { length: 255 }).unique(),
+  latitude: doublePrecision('latitude'),
+  longitude: doublePrecision('longitude'),
+  scheduledAt: timestamp('scheduled_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

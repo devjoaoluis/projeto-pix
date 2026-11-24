@@ -1,13 +1,26 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { UpdateNotificationPreferencesDto } from './dto/update-notification-preferences.dto';
+
+export type NotificationChannel = 'IN_APP' | 'SMS' | 'EMAIL';
+
+export interface NotificationPreferences {
+  accountId: string;
+  smsEnabled: boolean;
+  emailEnabled: boolean;
+  email?: string;
+  phone?: string;
+  updatedAt: string;
+}
 
 export interface TransactionNotification {
   id: string;
   accountId: string;
   transactionId: string;
-  type: 'RECEIVE' | 'TRANSFER';
+  type: 'RECEIVE' | 'TRANSFER' | 'CANCELED' | 'FAILED';
   message: string;
   amount: number;
   description?: string;
+  channels: NotificationChannel[];
   notifiedAt: string;
 }
 
@@ -15,21 +28,135 @@ export interface TransactionNotification {
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
-  // Armazena em memória para testes via Postman
-  // Em produção, substitua por uma tabela no banco de dados
   private readonly notifications: TransactionNotification[] = [];
+  private readonly preferences = new Map<string, NotificationPreferences>();
+
+  getPreferences(accountId: string): NotificationPreferences {
+    const existing = this.preferences.get(accountId);
+    if (existing) {
+      return existing;
+    }
+
+    return {
+      accountId,
+      smsEnabled: false,
+      emailEnabled: false,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  updatePreferences(
+    accountId: string,
+    dto: UpdateNotificationPreferencesDto,
+  ): NotificationPreferences {
+    if (
+      dto.smsEnabled === undefined &&
+      dto.emailEnabled === undefined &&
+      dto.channels === undefined &&
+      dto.email === undefined &&
+      dto.phone === undefined
+    ) {
+      throw new BadRequestException(
+        'Informe ao menos uma preferência de notificação (smsEnabled, emailEnabled ou channels)',
+      );
+    }
+
+    const current = this.getPreferences(accountId);
+
+    let smsEnabled = current.smsEnabled;
+    let emailEnabled = current.emailEnabled;
+
+    if (dto.channels !== undefined) {
+      smsEnabled = dto.channels.includes('SMS');
+      emailEnabled = dto.channels.includes('EMAIL');
+    }
+
+    if (dto.smsEnabled !== undefined) {
+      smsEnabled = dto.smsEnabled;
+    }
+
+    if (dto.emailEnabled !== undefined) {
+      emailEnabled = dto.emailEnabled;
+    }
+
+    const updated: NotificationPreferences = {
+      accountId,
+      smsEnabled,
+      emailEnabled,
+      email: dto.email ?? current.email,
+      phone: dto.phone ?? current.phone,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.preferences.set(accountId, updated);
+
+    this.logger.log(
+      `[PREFERÊNCIAS] Conta ${accountId} — SMS: ${smsEnabled ? 'ATIVO' : 'INATIVO'}, Email: ${emailEnabled ? 'ATIVO' : 'INATIVO'}`,
+    );
+
+    return updated;
+  }
+
+  enableChannel(
+    accountId: string,
+    channel: 'SMS' | 'EMAIL',
+    destination?: string,
+  ): NotificationPreferences {
+    if (channel === 'SMS') {
+      return this.updatePreferences(accountId, {
+        smsEnabled: true,
+        ...(destination ? { phone: destination } : {}),
+      });
+    }
+
+    return this.updatePreferences(accountId, {
+      emailEnabled: true,
+      ...(destination ? { email: destination } : {}),
+    });
+  }
+
+  disableChannel(
+    accountId: string,
+    channel: 'SMS' | 'EMAIL',
+  ): NotificationPreferences {
+    if (channel === 'SMS') {
+      return this.updatePreferences(accountId, { smsEnabled: false });
+    }
+
+    return this.updatePreferences(accountId, { emailEnabled: false });
+  }
 
   notify(
     accountId: string,
     transactionId: string,
-    type: 'RECEIVE' | 'TRANSFER',
+    type: TransactionNotification['type'],
     amount: number,
     description?: string,
   ): TransactionNotification {
-    const message =
-      type === 'RECEIVE'
-        ? `Você recebeu um PIX de R$ ${amount.toFixed(2)}`
-        : `PIX de R$ ${amount.toFixed(2)} enviado com sucesso`;
+    const value = amount.toFixed(2).replace('.', ',');
+    const message = {
+      RECEIVE: `Você recebeu um PIX de R$ ${value}`,
+      TRANSFER: `PIX de R$ ${value} enviado com sucesso`,
+      FAILED: `PIX agendado de R$ ${value} não foi executado`,
+      CANCELED: `PIX de R$ ${value} cancelado`,
+    }[type];
+
+    const prefs = this.getPreferences(accountId);
+    const channels: NotificationChannel[] = ['IN_APP'];
+
+    if (prefs.smsEnabled) {
+      channels.push('SMS');
+      this.logger.log(
+        `[SMS] Enviando SMS para ${prefs.phone ?? accountId}: ${message}`,
+      );
+    }
+
+    if (prefs.emailEnabled) {
+      channels.push('EMAIL');
+      this.logger.log(
+        `[EMAIL] Enviando e-mail para ${prefs.email ?? accountId}: ${message}`,
+      );
+    }
 
     const notification: TransactionNotification = {
       id: crypto.randomUUID(),
@@ -39,17 +166,15 @@ export class NotificationService {
       message,
       amount,
       description,
+      channels,
       notifiedAt: new Date().toISOString(),
     };
 
-    // Salva na lista em memória
     this.notifications.push(notification);
 
-    // Log visível no terminal do servidor
-    this.logger.log(`[NOTIFICAÇÃO] ${message} — conta: ${accountId}`);
-
-    // Aqui no futuro você pode chamar: e-mail, push, WebSocket, etc.
-    // Ex: await this.mailerService.sendMail({ to: email, subject: message })
+    this.logger.log(
+      `[NOTIFICAÇÃO] ${message} — conta: ${accountId} (canais: ${channels.join(', ')})`,
+    );
 
     return notification;
   }

@@ -10,10 +10,11 @@ import {
 
 import { BankAccountService } from './bank-account.service';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
-
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
+import { BlockForFraudDto } from './dto/block-for-fraud.dto';
 
 import { UpdateBalanceDto } from './dto/update-balance.dto';
+import { UpdateDailyLimitDto } from './dto/update-daily-limit.dto';
 
 @Controller('bank-accounts')
 export class BankAccountController {
@@ -49,6 +50,11 @@ export class BankAccountController {
     return this.bankAccountService.block(id);
   }
 
+  @Patch(':id/block-fraud')
+  blockForFraud(@Param('id') id: string, @Body() dto: BlockForFraudDto) {
+    return this.bankAccountService.blockForFraud(id, dto);
+  }
+
   @Patch(':id/activate')
   activate(@Param('id') id: string) {
     return this.bankAccountService.activate(id);
@@ -62,6 +68,11 @@ export class BankAccountController {
   @Patch(':id/balance')
   updateBalance(@Param('id') id: string, @Body() dto: UpdateBalanceDto) {
     return this.bankAccountService.updateBalance(id, dto.amount);
+  }
+
+  @Patch(':id/daily-limit')
+  updateDailyLimit(@Param('id') id: string, @Body() dto: UpdateDailyLimitDto) {
+    return this.bankAccountService.updateDailyLimit(id, dto.dailyLimit);
   }
 
   @Delete(':id')
