@@ -62,6 +62,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-pix-jwt-secret-change-me}
       JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-3600}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-pix-webhook-secret-change-me}
+      # Libera o botão "Simular pagamento" (a API roda com NODE_ENV=production). Só para demonstração.
+      ALLOW_PAYMENT_SIMULATION: ${ALLOW_PAYMENT_SIMULATION:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:3001}
       THROTTLE_TTL_MS: ${THROTTLE_TTL_MS:-60000}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-120}
