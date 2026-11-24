@@ -48,6 +48,13 @@ GET {{baseUrl}}/users
 
 GET {{baseUrl}}/users/{{userId}}
 
+# ------------------------------------------------------------
+# [TASK #44] Remover Usuário
+# ------------------------------------------------------------
+### Remover usuário (#44)
+
+DELETE {{baseUrl}}/users/{{userId}}
+
 ### Registrar login do usuário
 
 POST {{baseUrl}}/users/{{userId}}/login

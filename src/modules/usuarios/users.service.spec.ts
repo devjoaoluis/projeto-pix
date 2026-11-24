@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { UsersService } from './users.service';
@@ -66,5 +66,43 @@ describe('CreateUserDto', () => {
 
   it('phone com 21 caracteres falha', async () => {
     expect(await check({ ...base, phone: '1'.repeat(21) })).not.toHaveLength(0);
+  });
+});
+
+describe('UsersService.remove', () => {
+  const existingUser = {
+    id: 'user-uuid-1',
+    name: 'Ana',
+    cpf: '52998224725',
+    email: 'ana@email.com',
+    phone: '11999999999',
+  };
+  let repo: any;
+  let service: UsersService;
+
+  beforeEach(() => {
+    repo = {
+      findById: jest.fn(),
+      remove: jest.fn(),
+    };
+    service = new UsersService(repo);
+  });
+
+  it('deve lançar NotFoundException se usuário não existir', async () => {
+    repo.findById.mockResolvedValue(null);
+
+    await expect(service.remove('user-inexistente')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('deve remover usuário e retornar mensagem de sucesso', async () => {
+    repo.findById.mockResolvedValue(existingUser);
+    repo.remove.mockResolvedValue(existingUser);
+
+    const result = await service.remove(existingUser.id);
+
+    expect(repo.remove).toHaveBeenCalledWith(existingUser.id);
+    expect(result).toEqual({ message: 'Usuário removido com sucesso.' });
   });
 });

@@ -108,4 +108,10 @@ export class UsersService {
       type: 'LOGIN',
     });
   }
+
+  async remove(id: string) {
+    await this.findById(id);
+    await this.usersRepository.remove(id);
+    return { message: 'Usuário removido com sucesso.' };
+  }
 }

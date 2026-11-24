@@ -27,6 +27,11 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 - **Método**: `GET`
 - **Rota**: `/users/:id`
 
+### Remover Usuário (#44)
+- **Método**: `DELETE`
+- **Rota**: `/users/:id`
+*(Remove o usuário e, em cascata, todas as suas contas bancárias, chaves Pix, transações, contatos, logs de atividade e relatórios vinculados)*
+
 ### Registrar Login do Usuário
 - **Método**: `POST`
 - **Rota**: `/users/:id/login`

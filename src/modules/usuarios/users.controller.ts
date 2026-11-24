@@ -2,6 +2,7 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Param,
   Body,
   Query,
@@ -61,5 +62,10 @@ export class UsersController {
   @Get(':id')
   async findById(@Param('id', ParseUUIDPipe) id: string) {
     return await this.usersService.findById(id);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
+    return await this.usersService.remove(id);
   }
 }

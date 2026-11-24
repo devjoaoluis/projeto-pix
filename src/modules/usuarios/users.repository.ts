@@ -1,7 +1,15 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { and, desc, eq, gte, lte, SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, or, SQL } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { userActivityLogs, users } from '../../db/schema';
+import {
+  bankAccounts,
+  pixKeys,
+  pixTransactions,
+  reports,
+  userActivityLogs,
+  userContacts,
+  users,
+} from '../../db/schema';
 import { FilterActivityLogsDto } from './dto/filter-activity-logs.dto';
 
 @Injectable()
@@ -89,5 +97,57 @@ export class UsersRepository {
       .from(userActivityLogs)
       .where(and(...conditions))
       .orderBy(desc(userActivityLogs.createdAt));
+  }
+
+  async remove(id: string) {
+    const userAccounts = await this.db
+      .select({ id: bankAccounts.id })
+      .from(bankAccounts)
+      .where(eq(bankAccounts.userId, id));
+
+    const accountIds = userAccounts.map((a) => a.id);
+
+    if (accountIds.length > 0) {
+      await this.db
+        .delete(pixTransactions)
+        .where(
+          or(
+            inArray(pixTransactions.bankAccountId, accountIds),
+            inArray(pixTransactions.senderAccountId, accountIds),
+            inArray(pixTransactions.receiverAccountId, accountIds),
+          ),
+        );
+
+      await this.db
+        .delete(userContacts)
+        .where(inArray(userContacts.contactBankAccountId, accountIds));
+
+      await this.db
+        .delete(pixKeys)
+        .where(inArray(pixKeys.bankAccountId, accountIds));
+
+      await this.db
+        .delete(bankAccounts)
+        .where(eq(bankAccounts.userId, id));
+    }
+
+    await this.db
+      .delete(userContacts)
+      .where(eq(userContacts.ownerUserId, id));
+
+    await this.db
+      .delete(userActivityLogs)
+      .where(eq(userActivityLogs.userId, id));
+
+    await this.db
+      .delete(reports)
+      .where(eq(reports.userId, id));
+
+    const [deletedUser] = await this.db
+      .delete(users)
+      .where(eq(users.id, id))
+      .returning();
+
+    return deletedUser;
   }
 }
