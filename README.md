@@ -1,9 +1,5 @@
 # 🏦 Projeto Pix API
 
-## Frontend web
-
-O painel React está em `frontend/`. Consulte [as instruções de instalação, execução e integração](frontend/README.md). A interface inclui visão geral, usuários, contas, chaves Pix, transferências e agendamentos, cobranças, notificações e relatórios.
-
 API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix e transferências, desenvolvida com **NestJS** e TypeScript. Simula operações do sistema Pix com persistência em memória.
 
 ---
