@@ -255,20 +255,18 @@ export class PixTransactionService {
         return executed;
       }
 
-      const [inserted] = await tx.insert(pixTransactions)
-        .values({
-          senderAccountId: senderAccount.id,
-          receiverAccountId: receiverAccount.id,
-          pixKeyId: receiverPixKey.id,
-          amount: dto.amount.toString(),
-          description: dto.description,
-          status: 'COMPLETED',
-          type: 'TRANSFER',
-          idempotencyKey: dto.idempotencyKey,
-          latitude: dto.latitude,
-          longitude: dto.longitude,
-        })
-        .returning();
+      const inserted = await this.addToHistory(tx, {
+        senderAccountId: senderAccount.id,
+        receiverAccountId: receiverAccount.id,
+        pixKeyId: receiverPixKey.id,
+        amount: dto.amount.toString(),
+        description: dto.description,
+        status: 'COMPLETED',
+        type: 'TRANSFER',
+        idempotencyKey: dto.idempotencyKey,
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+      });
 
       return inserted;
     });
@@ -411,18 +409,15 @@ export class PixTransactionService {
         .set({ balance: sql`balance + ${dto.amount}` })
         .where(eq(bankAccounts.id, pixKey.bankAccountId));
 
-      const [inserted] = await tx
-        .insert(pixTransactions)
-        .values({
-          receiverAccountId: pixKey.bankAccountId,
-          pixKeyId: pixKey.id,
-          amount: dto.amount.toString(),
-          description: dto.description,
-          status: 'COMPLETED',
-          type: 'RECEIVE',
-          idempotencyKey: dto.externalTransactionId,
-        })
-        .returning();
+      const inserted = await this.addToHistory(tx, {
+        receiverAccountId: pixKey.bankAccountId,
+        pixKeyId: pixKey.id,
+        amount: dto.amount.toString(),
+        description: dto.description,
+        status: 'COMPLETED',
+        type: 'RECEIVE',
+        idempotencyKey: dto.externalTransactionId,
+      });
 
       return inserted;
     });
@@ -439,6 +434,20 @@ export class PixTransactionService {
       transaction,
       notification,
     };
+  }
+
+  // Requisito "Adicionar Transação ao Histórico": único ponto que grava no
+  // histórico (pix_transactions). Aceita o db ou uma transação aberta (tx).
+  private async addToHistory(
+    executor: Pick<NodePgDatabase<Record<string, never>>, 'insert'>,
+    values: typeof pixTransactions.$inferInsert,
+  ) {
+    const [record] = await executor
+      .insert(pixTransactions)
+      .values(values)
+      .returning();
+
+    return record;
   }
 
   private async getSenderAccount(accountId: string, amount: number) {
@@ -552,21 +561,19 @@ export class PixTransactionService {
       await this.checkIdempotency(dto.idempotencyKey);
     }
 
-    const [scheduled] = await this.db.insert(pixTransactions)
-      .values({
-        // receiverAccountId só é preenchido na execução: até lá o destinatário não vê nem é notificado.
-        senderAccountId,
-        pixKeyId: receiverPixKey.id,
-        amount: dto.amount.toString(),
-        description: dto.description,
-        status: 'SCHEDULED',
-        type: 'TRANSFER',
-        idempotencyKey: dto.idempotencyKey,
-        latitude: dto.latitude,
-        longitude: dto.longitude,
-        scheduledAt,
-      })
-      .returning();
+    const scheduled = await this.addToHistory(this.db, {
+      // receiverAccountId só é preenchido na execução: até lá o destinatário não vê nem é notificado.
+      senderAccountId,
+      pixKeyId: receiverPixKey.id,
+      amount: dto.amount.toString(),
+      description: dto.description,
+      status: 'SCHEDULED',
+      type: 'TRANSFER',
+      idempotencyKey: dto.idempotencyKey,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      scheduledAt,
+    });
 
     return scheduled;
   }
