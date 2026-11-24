@@ -1,32 +1,106 @@
-version: '3.8'
+# Sobe o sistema inteiro: banco -> schema + dados de exemplo -> API.
+# Uso:  cp .env.example .env   e depois   docker compose up --build
+# As senhas e portas vêm do arquivo .env (que não vai para o Git).
 
 services:
   postgres:
     image: postgres:15-alpine
     container_name: banco_pix_pg
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: rootpassword
-      POSTGRES_DB: banco_pix
+      POSTGRES_USER: ${POSTGRES_USER:-root}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copie .env.example para .env}
+      POSTGRES_DB: ${POSTGRES_DB:-banco_pix}
     ports:
-      - '5433:5432'
+      - '${POSTGRES_PORT:-5433}:5432'
     volumes:
       - banco_pix_data:/var/lib/postgresql/data
+    # Sem isso o "depends_on" só espera o container LIGAR, não o banco ACEITAR
+    # conexões. pg_isready responde "ok" quando o Postgres está pronto.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
+  # Roda UMA vez: cria as tabelas (drizzle push) e insere os dados de exemplo,
+  # depois termina (restart: "no"). Usa o estágio "build" do Dockerfile porque
+  # drizzle-kit e tsx são devDependencies, ausentes na imagem final.
+  # --force aprova o push sem perguntar (não há terminal interativo aqui);
+  # é seguro em banco novo, mas em banco com dados pode apagar colunas removidas.
   seed:
-    image: node:20-alpine
+    build:
+      context: .
+      target: build
     container_name: banco_pix_seed
+    restart: 'no'
     depends_on:
       postgres:
-        condition: service_started
-    volumes:
-      - .:/app
-      - /app/node_modules
-    working_dir: /app
-    command: sh -c "npm install && npm run db:push && npm run seed"
+        condition: service_healthy
     environment:
-      - DB_URL=postgresql://root:rootpassword@postgres:5432/banco_pix
+      DB_URL: postgresql://${POSTGRES_USER:-root}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-banco_pix}
+    command: sh -c "npm run db:migrate && npm run seed"
+
+  api:
+    build:
+      context: .
+      target: runtime
+    container_name: banco_pix_api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
+    environment:
+      # Dentro da rede do Docker o banco se chama "postgres" (nome do serviço),
+      # e a porta é a interna 5432, não a 5433 publicada no seu computador.
+      DB_URL: postgresql://${POSTGRES_USER:-root}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-banco_pix}
+      PORT: 3000
+      TZ: America/Sao_Paulo
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      JWT_SECRET: ${JWT_SECRET:-dev-pix-jwt-secret-change-me}
+      JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-3600}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-pix-webhook-secret-change-me}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:3001}
+      THROTTLE_TTL_MS: ${THROTTLE_TTL_MS:-60000}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-120}
+    ports:
+      - '${API_PORT:-3000}:3000'
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: banco_pix_prometheus
+    restart: unless-stopped
+    depends_on:
+      - api
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - '${PROMETHEUS_PORT:-9090}:9090'
+
+  grafana:
+    image: grafana/grafana:11.3.1
+    container_name: banco_pix_grafana
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - '${GRAFANA_PORT:-3001}:3000'
 
 volumes:
   banco_pix_data:
+  prometheus_data:
+  grafana_data:

@@ -1,4 +1,4 @@
-@baseUrl = http://localhost:3000
+@baseUrl = http://localhost:3000/api/v1
 
 # ============================================================
 
@@ -19,6 +19,8 @@
 @pixId = b032e4c8-f032-4270-aa60-f425a96f1acf
 
 @reportId = COLE_UUID_RELATORIO_AQUI
+
+@contactId = COLE_UUID_CONTATO_AQUI
 
 # ============================================================
 
@@ -45,6 +47,58 @@ GET {{baseUrl}}/users
 ### Buscar usuário por ID
 
 GET {{baseUrl}}/users/{{userId}}
+
+# ------------------------------------------------------------
+# [TASK #43] Atualizar Dados do Usuário
+# ------------------------------------------------------------
+### Atualizar dados do usuário (#43)
+
+PATCH {{baseUrl}}/users/{{userId}}
+Content-Type: application/json
+
+{
+  "name": "Luis Gomes Atualizado",
+  "email": "luis.novo@gmail.com",
+  "phone": "11988887777"
+}
+
+# ------------------------------------------------------------
+# [TASK #44] Remover Usuário
+# ------------------------------------------------------------
+### Remover usuário (#44)
+
+DELETE {{baseUrl}}/users/{{userId}}
+
+### Registrar login do usuário
+
+POST {{baseUrl}}/users/{{userId}}/login
+Content-Type: application/json
+
+{
+  "ipAddress": "192.168.1.10",
+  "device": "App Mobile iOS",
+  "description": "Login realizado com sucesso"
+}
+
+### Registrar atividade do usuário
+
+POST {{baseUrl}}/users/{{userId}}/activities
+Content-Type: application/json
+
+{
+  "type": "KEY_CHANGE",
+  "description": "Alteração de chave PIX associada",
+  "ipAddress": "192.168.1.10",
+  "device": "Web Browser Chrome"
+}
+
+### Consultar histórico de atividades do usuário
+
+GET {{baseUrl}}/users/{{userId}}/activities
+
+### Consultar histórico de logins do usuário
+
+GET {{baseUrl}}/users/{{userId}}/login-history
 
 # ============================================================
 
@@ -323,3 +377,53 @@ GET {{baseUrl}}/notifications
 ### Listar notificações da conta
 
 GET {{baseUrl}}/notifications/{{bankAccountId}}
+
+### Consultar preferências de notificação (SMS / Email)
+
+GET {{baseUrl}}/notifications/{{bankAccountId}}/preferences
+
+### Habilitar notificação por SMS e Email
+
+PATCH {{baseUrl}}/notifications/{{bankAccountId}}/preferences
+Content-Type: application/json
+
+{
+  "smsEnabled": true,
+  "emailEnabled": true,
+  "phone": "11999999998",
+  "email": "luis@gmail.com"
+}
+
+# ============================================================
+
+# 8. CONTATOS PIX
+
+# ============================================================
+
+### Adicionar contato com chave Pix
+
+POST {{baseUrl}}/pix/contacts/user/{{userId}}
+Content-Type: application/json
+
+{
+  "name": "Maria Oliveira",
+  "nickname": "Maria",
+  "email": "luis@gmail.com"
+}
+
+### Listar contatos do usuário
+
+GET {{baseUrl}}/pix/contacts/user/{{userId}}
+
+### Sincronizar agenda de contatos com chaves Pix
+
+POST {{baseUrl}}/pix/contacts/user/{{userId}}/sync
+Content-Type: application/json
+
+{
+  "identifiers": ["luis@gmail.com", "11999999998"]
+}
+
+### Remover contato
+
+DELETE {{baseUrl}}/pix/contacts/user/{{userId}}/{{contactId}}

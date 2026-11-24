@@ -3,7 +3,6 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
 yarn.lock
 
 # Arquivos de ambiente e variáveis sensíveis
@@ -30,3 +29,10 @@ coverage/
 # Logs
 logs/
 *.log
+
+# Terraform: estado e plugins ficam fora do Git (o estado pode conter senhas)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.auto.tfvars
+crash.log
