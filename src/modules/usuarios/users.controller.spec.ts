@@ -12,6 +12,7 @@ describe('UsersController (Login and Activity History)', () => {
       registerActivity: jest.fn(),
       getActivityHistory: jest.fn(),
       getLoginHistory: jest.fn(),
+      update: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -53,6 +54,28 @@ describe('UsersController (Login and Activity History)', () => {
     const result = await controller.getLoginHistory('user-1', {});
 
     expect(service.getLoginHistory).toHaveBeenCalledWith('user-1', {});
+    expect(result).toEqual(expected);
+  });
+
+  it('deve atualizar dados do usuário via PATCH :id', async () => {
+    const expected = { id: 'user-1', name: 'Novo Nome' };
+    (service.update as jest.Mock).mockResolvedValue(expected);
+
+    const dto = { name: 'Novo Nome' };
+    const result = await controller.update('user-1', dto);
+
+    expect(service.update).toHaveBeenCalledWith('user-1', dto);
+    expect(result).toEqual(expected);
+  });
+
+  it('deve atualizar dados do usuário via PUT :id', async () => {
+    const expected = { id: 'user-1', name: 'Novo Nome' };
+    (service.update as jest.Mock).mockResolvedValue(expected);
+
+    const dto = { name: 'Novo Nome' };
+    const result = await controller.replace('user-1', dto);
+
+    expect(service.update).toHaveBeenCalledWith('user-1', dto);
     expect(result).toEqual(expected);
   });
 });

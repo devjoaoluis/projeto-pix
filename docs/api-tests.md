@@ -27,6 +27,18 @@ Este documento contém todos os endpoints disponíveis na API, com o corpo das r
 - **Método**: `GET`
 - **Rota**: `/users/:id`
 
+### Atualizar Dados do Usuário (#43)
+- **Método**: `PATCH` ou `PUT`
+- **Rota**: `/users/:id`
+- **Body** (JSON):
+```json
+{
+  "name": "Luis Gomes Atualizado",
+  "email": "luis.novo@gmail.com",
+  "phone": "11988887777"
+}
+```
+
 ### Registrar Login do Usuário
 - **Método**: `POST`
 - **Rota**: `/users/:id/login`

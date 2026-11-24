@@ -2,6 +2,9 @@ import {
   Controller,
   Post,
   Get,
+  Patch,
+  Put,
+  Delete,
   Param,
   Body,
   Query,
@@ -9,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { CreateActivityLogDto } from './dto/create-activity-log.dto';
 import { FilterActivityLogsDto } from './dto/filter-activity-logs.dto';
 
@@ -61,5 +65,21 @@ export class UsersController {
   @Get(':id')
   async findById(@Param('id', ParseUUIDPipe) id: string) {
     return await this.usersService.findById(id);
+  }
+
+  @Patch(':id')
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserDto,
+  ) {
+    return await this.usersService.update(id, dto);
+  }
+
+  @Put(':id')
+  async replace(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateUserDto,
+  ) {
+    return await this.usersService.update(id, dto);
   }
 }

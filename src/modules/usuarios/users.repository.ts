@@ -1,7 +1,15 @@
 import { Injectable, Inject } from '@nestjs/common';
-import { and, desc, eq, gte, lte, SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, or, SQL } from 'drizzle-orm';
 import { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { userActivityLogs, users } from '../../db/schema';
+import {
+  bankAccounts,
+  pixKeys,
+  pixTransactions,
+  reports,
+  userActivityLogs,
+  userContacts,
+  users,
+} from '../../db/schema';
 import { FilterActivityLogsDto } from './dto/filter-activity-logs.dto';
 
 @Injectable()
@@ -89,5 +97,18 @@ export class UsersRepository {
       .from(userActivityLogs)
       .where(and(...conditions))
       .orderBy(desc(userActivityLogs.createdAt));
+  }
+
+  async update(
+    id: string,
+    data: Partial<{ name: string; email: string; phone: string }>,
+  ) {
+    const [updatedUser] = await this.db
+      .update(users)
+      .set(data)
+      .where(eq(users.id, id))
+      .returning();
+
+    return updatedUser;
   }
 }

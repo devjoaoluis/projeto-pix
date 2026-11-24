@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { UsersRepository } from './users.repository';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { CreateActivityLogDto } from './dto/create-activity-log.dto';
 import { FilterActivityLogsDto } from './dto/filter-activity-logs.dto';
 
@@ -107,5 +108,34 @@ export class UsersService {
       ...filterDto,
       type: 'LOGIN',
     });
+  }
+
+  async update(id: string, dto: UpdateUserDto) {
+    await this.findById(id);
+
+    const name = dto.name ?? dto.nome;
+    const phone = dto.phone ?? dto.telefone;
+    const email = dto.email;
+
+    const updatePayload: Partial<{ name: string; email: string; phone: string }> =
+      {};
+    if (name !== undefined) updatePayload.name = name.trim();
+    if (email !== undefined) updatePayload.email = email.trim();
+    if (phone !== undefined) updatePayload.phone = phone.trim();
+
+    if (Object.keys(updatePayload).length === 0) {
+      return await this.findById(id);
+    }
+
+    try {
+      return await this.usersRepository.update(id, updatePayload);
+    } catch (e: any) {
+      if ((e?.cause?.code ?? e?.code) === '23505') {
+        throw new BadRequestException(
+          'Já existe um usuário cadastrado com estes dados.',
+        );
+      }
+      throw e;
+    }
   }
 }

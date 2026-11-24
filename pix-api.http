@@ -48,6 +48,20 @@ GET {{baseUrl}}/users
 
 GET {{baseUrl}}/users/{{userId}}
 
+# ------------------------------------------------------------
+# [TASK #43] Atualizar Dados do Usuário
+# ------------------------------------------------------------
+### Atualizar dados do usuário (#43)
+
+PATCH {{baseUrl}}/users/{{userId}}
+Content-Type: application/json
+
+{
+  "name": "Luis Gomes Atualizado",
+  "email": "luis.novo@gmail.com",
+  "phone": "11988887777"
+}
+
 ### Registrar login do usuário
 
 POST {{baseUrl}}/users/{{userId}}/login
