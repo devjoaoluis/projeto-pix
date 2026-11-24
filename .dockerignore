@@ -1,0 +1,12 @@
+# Tudo que está aqui NÃO entra no build do Docker (mais rápido e sem vazar segredo).
+node_modules
+dist
+.git
+.env
+.env.*
+!.env.example
+infra
+frontend
+docs
+coverage
+*.md

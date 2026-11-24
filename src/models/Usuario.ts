@@ -8,6 +8,8 @@ export class Usuario {
   telefone: string;
   dataCadastro: Date;
   contas: ContaBancaria[];
+  notificacaoSmsAtiva: boolean;
+  notificacaoEmailAtiva: boolean;
 
   constructor(nome: string, cpf: string, email: string, telefone: string) {
     this.id = null;
@@ -17,5 +19,12 @@ export class Usuario {
     this.telefone = telefone;
     this.dataCadastro = new Date();
     this.contas = [];
+    this.notificacaoSmsAtiva = false;
+    this.notificacaoEmailAtiva = false;
+  }
+
+  configurarNotificacoes(sms: boolean, email: boolean): void {
+    this.notificacaoSmsAtiva = sms;
+    this.notificacaoEmailAtiva = email;
   }
 }

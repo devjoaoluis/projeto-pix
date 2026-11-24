@@ -4,10 +4,11 @@ import {
   IsNumber,
   IsPositive,
   IsOptional,
+  IsUUID,
 } from 'class-validator';
 
 export class CreatePixDto {
-  @IsString({ message: 'O bankAccountId deve ser uma string válida.' })
+  @IsUUID('all', { message: 'O bankAccountId deve ser um UUID válido.' })
   @IsNotEmpty({ message: 'O bankAccountId é obrigatório.' })
   bankAccountId: string;
 

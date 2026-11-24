@@ -76,7 +76,7 @@ describe('cliente HTTP da API Pix', () => {
     vi.stubGlobal('fetch', fetcher);
     await api.transactions('conta', '2026-11-01', '2026-11-02');
     const url = new URL(fetcher.mock.calls[0][0], 'http://localhost');
-    expect(url.pathname).toBe('/api/pix/transactions/account/conta');
+    expect(url.pathname).toBe('/api/v1/pix/transactions/account/conta');
     expect(url.searchParams.get('startDate')).toBe('2026-11-01T03:00:00.000Z');
     expect(url.searchParams.get('endDate')).toBe('2026-11-03T02:59:59.999Z');
   });
@@ -90,7 +90,7 @@ describe('cliente HTTP da API Pix', () => {
     };
     await api.transfer('conta', body);
     expect(fetcher.mock.calls[0][0]).toBe(
-      '/api/pix/transactions/conta/transfer',
+      '/api/v1/pix/transactions/conta/transfer',
     );
     expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual(body);
   });

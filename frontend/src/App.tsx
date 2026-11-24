@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Route, Routes, Link, useLocation } from 'react-router-dom';
 import { useQueryClient, useIsFetching } from '@tanstack/react-query';
 import {
@@ -15,6 +15,7 @@ import {
   RefreshCw,
   ArrowUpRight,
   Command,
+  LogOut,
 } from 'lucide-react';
 import Dashboard from '@/pages/dashboard';
 import UsersPage from '@/pages/users';
@@ -24,6 +25,8 @@ import TransfersPage from '@/pages/transfers';
 import ChargesPage from '@/pages/charges';
 import NotificationsPage from '@/pages/notifications';
 import ReportsPage from '@/pages/reports';
+import LoginPage from '@/pages/login';
+import { AUTH_EVENT, clearToken, getToken } from '@/services/api';
 import { Button } from '@/components/ui/button';
 const navigation = [
   { path: '/', title: 'Visão geral', icon: LayoutDashboard },
@@ -40,6 +43,18 @@ export default function App() {
   const location = useLocation();
   const client = useQueryClient();
   const fetching = useIsFetching();
+  const [authed, setAuthed] = useState(() => !!getToken());
+  useEffect(() => {
+    const onLogout = () => setAuthed(false);
+    window.addEventListener(AUTH_EVENT, onLogout);
+    return () => window.removeEventListener(AUTH_EVENT, onLogout);
+  }, []);
+  const logout = () => {
+    clearToken();
+    client.clear();
+    setAuthed(false);
+  };
+  if (!authed) return <LoginPage onLogin={() => setAuthed(true)} />;
   return (
     <div className="app-shell">
       <a href="#content" className="skip-link">
@@ -134,6 +149,14 @@ export default function App() {
               <Link to="/notificacoes" aria-label="Ver notificações">
                 <Bell size={19} />
               </Link>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={logout}
+              aria-label="Sair"
+            >
+              <LogOut size={17} />
             </Button>
             <span className="header-avatar">PX</span>
           </div>
