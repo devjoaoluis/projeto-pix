@@ -5,9 +5,20 @@ import {
   IsString,
   MaxLength,
   MinLength,
+  Validate,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { IsCPF } from 'brazilian-class-validator';
+import { cpf as cpfValidator } from 'cpf-cnpj-validator';
+
+// Substitui o brazilian-class-validator, que trazia um class-validator antigo e vulnerável.
+@ValidatorConstraint({ name: 'isCpf' })
+class IsCpfConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown) {
+    return typeof value === 'string' && cpfValidator.isValid(value);
+  }
+}
 
 export class CreateUserDto {
   @Transform(({ value }) =>
@@ -22,7 +33,7 @@ export class CreateUserDto {
   @Transform(({ value }) =>
     typeof value === 'string' ? value.replace(/\D/g, '') : (value as unknown),
   )
-  @IsCPF({ message: 'O CPF fornecido é inválido.' })
+  @Validate(IsCpfConstraint, { message: 'O CPF fornecido é inválido.' })
   @IsNotEmpty({ message: 'O CPF é obrigatório.' })
   cpf!: string;
 
