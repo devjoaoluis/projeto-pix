@@ -1,6 +1,6 @@
 # Projeto Pix · Frontend
 
-Painel em React, TypeScript, Vite, Tailwind CSS, componentes shadcn/ui com Radix, React Router, TanStack Query, React Hook Form, Zod e Lucide. A interface usa somente dados da API; não há login nem persistência de dados pessoais no navegador.
+Painel em React, TypeScript, Vite, Tailwind CSS, componentes shadcn/ui com Radix, React Router, TanStack Query, React Hook Form, Zod e Lucide. A interface usa somente dados da API; a API exige JWT, então o painel tem tela de login; o token fica só em `sessionStorage` (some ao fechar a aba). Entre com o usuário ADMIN criado por `npm run seed` (veja `src/db/seed.ts`), pois as listagens gerais são restritas a ADMIN.
 
 ## Executar localmente
 
@@ -28,7 +28,7 @@ npm install
 npm run dev
 ```
 
-Abra http://127.0.0.1:5173. `VITE_API_URL` define o destino do proxy de desenvolvimento (padrão `http://localhost:3000`); o navegador usa `/api`, evitando depender de CORS no NestJS. Reinicie o Vite após alterar o ambiente.
+Abra http://127.0.0.1:5173. `VITE_API_URL` define o destino do proxy de desenvolvimento (padrão `http://localhost:3000`); o navegador usa `/api/v1` (o Vite encaminha para a API sem reescrever o caminho), evitando depender de CORS no NestJS. Reinicie o Vite após alterar o ambiente.
 
 ## Compilar e verificar
 
@@ -41,7 +41,7 @@ O build estático fica em `frontend/dist`. `npm run preview` serve esse build pa
 
 ## Hospedagem
 
-Sirva `dist` com fallback de rotas para `index.html`. Configure um proxy reverso de `/api/*` para a API NestJS, removendo o prefixo `/api`. Alternativamente, defina `VITE_API_BASE_PATH=https://sua-api` antes do build; nesse caso, o servidor da API precisa permitir CORS para a origem do frontend. As variáveis `VITE_*` são públicas; nunca inclua credenciais. Não houve alteração de comportamento do backend; somente a exclusão da pasta `frontend` das configurações TypeScript da raiz.
+Sirva `dist` com fallback de rotas para `index.html`. Configure um proxy reverso de `/api/*` para a API NestJS, mantendo o caminho (a API responde em `/api/v1`). Alternativamente, defina `VITE_API_BASE_PATH=https://sua-api` antes do build; nesse caso, o servidor da API precisa permitir CORS para a origem do frontend. As variáveis `VITE_*` são públicas; nunca inclua credenciais. Não houve alteração de comportamento do backend; somente a exclusão da pasta `frontend` das configurações TypeScript da raiz.
 
 ## Telas e contratos
 
@@ -81,6 +81,6 @@ O build e os testes cobrem valores financeiros, CPF/telefone, limites de campos,
 
 No navegador foram conferidos o painel com dados reais, contas, chaves por conta, revisão de transferência e validação de IDs. A largura de celular de 390 px foi verificada: o menu fechado deixa de receber foco e a página não transborda horizontalmente; tabelas mantêm sua própria rolagem.
 
-Em 24/11/2026, os erros 500 de contas, transações e chaves foram rastreados a estruturas ausentes no banco local. A atualização aditiva `scripts/sync-pix-schema.sql` foi aplicada em transação, preservando os registros. Foram acrescentados limite diário, status/suspensão de chaves, localização/agendamento de transações e a tabela de relatórios, conforme `src/db/schema.ts`. As consultas pelo proxy Vite passaram a retornar HTTP 200.
+Em 24/11/2026, os erros 500 de contas, transações e chaves foram rastreados a estruturas ausentes no banco local. A atualização aditiva (script removido depois: o esquema agora é gerenciado pelas migrations do Drizzle) foi aplicada em transação, preservando os registros. Foram acrescentados limite diário, status/suspensão de chaves, localização/agendamento de transações e a tabela de relatórios, conforme `src/db/schema.ts`. As consultas pelo proxy Vite passaram a retornar HTTP 200.
 
 Para repetir a atualização em outro ambiente com a mesma versão antiga do banco, execute `node scripts/sync-pix-schema.cjs` na raiz com `DB_URL` configurada. O script só acrescenta estruturas conhecidas; não substitui o gerenciamento geral de migrações nem muda dados existentes. Não foram realizadas transferências ou alterações de saldo durante a verificação.

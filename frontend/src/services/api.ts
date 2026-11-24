@@ -8,6 +8,14 @@ import type {
   ReportResult,
   TransferInput,
 } from '@/types/api';
+const TOKEN_KEY = 'pix_token';
+export const AUTH_EVENT = 'pix:logout';
+// typeof: testes em Node não têm sessionStorage.
+const store = () =>
+  typeof sessionStorage === 'undefined' ? null : sessionStorage;
+export const getToken = () => store()?.getItem(TOKEN_KEY) ?? null;
+export const setToken = (token: string) => store()?.setItem(TOKEN_KEY, token);
+export const clearToken = () => store()?.removeItem(TOKEN_KEY);
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -33,14 +41,14 @@ export async function request<T>(
   let response: Response;
   try {
     response = await fetch(
-      `${(import.meta.env.VITE_API_BASE_PATH || '/api').replace(/\/$/, '')}${path}`,
+      `${(import.meta.env.VITE_API_BASE_PATH || '/api/v1').replace(/\/$/, '')}${path}`,
       {
         method,
         signal: AbortSignal.timeout(15000),
-        headers:
-          body === undefined
-            ? undefined
-            : { 'Content-Type': 'application/json' },
+        headers: {
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+          ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
+        },
         body: body === undefined ? undefined : JSON.stringify(body),
       },
     );
@@ -59,6 +67,11 @@ export async function request<T>(
     throw new ApiError(response.status, [
       'A API retornou uma resposta inválida. Confira a configuração do servidor.',
     ]);
+  }
+  // Token expirado ou inválido: volta para a tela de login.
+  if (response.status === 401 && getToken()) {
+    clearToken();
+    window.dispatchEvent(new Event(AUTH_EVENT));
   }
   if (!response.ok) {
     const message =
@@ -85,6 +98,11 @@ export async function request<T>(
   return data as T;
 }
 export const api = {
+  login: (email: string, password: string) =>
+    request<{ accessToken: string }>('/auth/login', 'POST', {
+      email,
+      password,
+    }),
   users: () => request<User[]>('/users'),
   user: (id: string) => request<User>(`/users/${id}`),
   createUser: (body: Omit<User, 'id' | 'createdAt'>) =>
