@@ -68,6 +68,17 @@ services:
     ports:
       - '${API_PORT:-3000}:3000'
 
+  # Painel web (React). O nginx serve a interface e encaminha /api/ para a API.
+  frontend:
+    build:
+      context: ./frontend
+    container_name: banco_pix_frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '${FRONTEND_PORT:-8080}:80'
+
   prometheus:
     image: prom/prometheus:v2.55.1
     container_name: banco_pix_prometheus
