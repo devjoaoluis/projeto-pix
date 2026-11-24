@@ -9,6 +9,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CreateActivityLogDto } from './dto/create-activity-log.dto';
 import { FilterActivityLogsDto } from './dto/filter-activity-logs.dto';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 
 export function sanitizeUser<T>(user: T): Omit<T, 'passwordHash'> {
   if (!user || typeof user !== 'object' || !('passwordHash' in user)) {
@@ -53,8 +54,8 @@ export class UsersService {
     return sanitizeUser(user);
   }
 
-  async findAll() {
-    const all = await this.usersRepository.findAll();
+  async findAll(pagination?: PaginationQueryDto) {
+    const all = await this.usersRepository.findAll(pagination);
     return Array.isArray(all) ? all.map((u) => sanitizeUser(u)) : all;
   }
 

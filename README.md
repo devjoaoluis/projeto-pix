@@ -78,14 +78,15 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix, tran
 | Módulo | Base Route | Operações principais |
 | :--- | :--- | :--- |
 | **Observabilidade** | `/`, `/health`, `/metrics` | `GET /`, `GET /health` (API + PostgreSQL), `GET /metrics` (Prometheus) |
-| **Usuários** | `/users` | `POST`, `GET`, `GET /:id`, `PATCH/PUT /:id`, `DELETE /:id`, `POST /:id/login`, `POST/GET /:id/activities`, `GET /:id/login-history` |
-| **Contas** | `/bank-accounts` | `POST`, `GET`, `GET /:id`, `GET /user/:userId`, `GET/PATCH /:id/balance`, `PATCH /:id/daily-limit`, `PATCH /:id/block`, `PATCH /:id/block-fraud`, `PATCH /:id/activate`, `PATCH /:id`, `DELETE /:id` |
-| **Chaves Pix** | `/pix/keys` (ou `/pix/keys/account`) | `POST /:bankAccountId`, `POST /:bankAccountId/random`, `GET /:bankAccountId`, `PATCH/PUT /:bankAccountId/:id`, `PATCH /:bankAccountId/:id/suspend`, `PATCH /:bankAccountId/:id/unblock`, `DELETE /:bankAccountId/:id` |
-| **Contatos Pix** | `/pix/contacts` | `POST/GET /user/:userId`, `POST /user/:userId/sync`, `GET/PATCH/DELETE /user/:userId/:contactId` |
-| **Pix (Cobrança)** | `/pix` | `POST /generate`, `GET /:id/status`, `PATCH /:id/simulate-payment` |
-| **Transações Pix** | `/pix/transactions` | `GET`, `POST /:senderAccountId/transfer`, `POST /:senderAccountId/schedule`, `GET /account/:bankAccountId`, `GET /account/:bankAccountId/history`, `GET /account/:bankAccountId/scheduled`, `PATCH /:id/cancel`, `POST /webhook` |
-| **Relatórios** | `/pix/reports` | `POST /user/:userId`, `POST /user/:userId/period`, `GET /user/:userId`, `GET /:reportId` |
-| **Notificações** | `/notifications` | `GET`, `GET /:accountId`, `GET/PATCH /:accountId/preferences`, `POST /:accountId/enable-sms`, `POST /:accountId/enable-email` |
+| **Autenticação** | `/api/v1/auth` | `POST /register`, `POST /login`, `GET /me` |
+| **Usuários** | `/api/v1/users` | `POST`, `GET` (paginado), `GET /:id`, `PATCH/PUT /:id`, `DELETE /:id`, `POST /:id/login`, `POST/GET /:id/activities`, `GET /:id/login-history` |
+| **Contas** | `/api/v1/bank-accounts` | `POST`, `GET` (paginado), `GET /:id`, `GET /user/:userId`, `GET/PATCH /:id/balance`, `GET/POST/DELETE /:id/permissions`, `PATCH /:id/daily-limit`, `PATCH /:id/block`, `PATCH /:id/block-fraud`, `PATCH /:id/activate`, `PATCH /:id`, `DELETE /:id` |
+| **Chaves Pix** | `/api/v1/pix/keys` | `POST /account/:bankAccountId`, `POST /account/:bankAccountId/random`, `GET /account/:bankAccountId`, `PATCH /account/:bankAccountId/:id`, `PATCH /account/:bankAccountId/:id/random`, `PATCH /account/:bankAccountId/:id/suspend`, `PATCH /account/:bankAccountId/:id/unblock`, `DELETE /account/:bankAccountId/:id`, `PATCH /:id`, `PATCH /:id/suspend`, `PATCH /:id/unblock` |
+| **Contatos Pix** | `/api/v1/pix/contacts` | `POST/GET /user/:userId`, `POST /user/:userId/sync`, `GET/PATCH/DELETE /user/:userId/:contactId` |
+| **Pix (Cobrança)** | `/api/v1/pix` | `POST /generate`, `GET /:id/status`, `PATCH /:id/simulate-payment` |
+| **Transações Pix** | `/api/v1/pix/transactions` | `GET` (paginado), `POST /:senderAccountId/transfer`, `POST /:senderAccountId/schedule`, `GET /account/:bankAccountId`, `GET /account/:bankAccountId/history` (paginado), `GET /account/:bankAccountId/scheduled`, `PATCH /:id/cancel`, `POST /webhook` |
+| **Relatórios** | `/api/v1/pix/reports` | `POST /user/:userId`, `POST /user/:userId/period`, `GET /user/:userId`, `GET /:reportId` |
+| **Notificações** | `/api/v1/notifications` | `GET` (paginado), `GET /:accountId` (paginado), `GET/PATCH /:accountId/preferences`, `POST /:accountId/enable-sms`, `POST /:accountId/enable-email` |
 
 ---
 

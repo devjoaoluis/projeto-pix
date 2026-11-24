@@ -18,5 +18,7 @@ export interface HistoryResponse {
   bankAccountId: string;
   currentBalance: string;
   count: number;
+  limit: number;
+  offset: number;
   transactions: HistoryTransaction[];
 }

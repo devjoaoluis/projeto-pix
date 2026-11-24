@@ -12,6 +12,10 @@ import {
   users,
 } from '../../db/schema';
 import { FilterActivityLogsDto } from './dto/filter-activity-logs.dto';
+import {
+  PaginationQueryDto,
+  resolvePagination,
+} from '../../common/dto/pagination-query.dto';
 
 @Injectable()
 export class UsersRepository {
@@ -63,8 +67,14 @@ export class UsersRepository {
     return user;
   }
 
-  async findAll() {
-    return await this.db.select().from(users);
+  async findAll(pagination?: PaginationQueryDto) {
+    const { limit, offset } = resolvePagination(pagination);
+    return await this.db
+      .select()
+      .from(users)
+      .orderBy(desc(users.createdAt))
+      .limit(limit)
+      .offset(offset);
   }
 
   async createActivityLog(data: {

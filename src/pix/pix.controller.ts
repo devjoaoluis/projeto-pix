@@ -6,6 +6,7 @@ import {
   Param,
   Body,
   ForbiddenException,
+  ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -28,12 +29,12 @@ export class PixController {
   }
 
   @Get(':id/status')
-  async getStatus(@Param('id') id: string) {
+  async getStatus(@Param('id', ParseUUIDPipe) id: string) {
     return this.pixService.getStatus(id);
   }
 
   @Patch(':id/simulate-payment')
-  async simulatePayment(@Param('id') id: string) {
+  async simulatePayment(@Param('id', ParseUUIDPipe) id: string) {
     if (
       process.env.NODE_ENV === 'production' &&
       process.env.ALLOW_PAYMENT_SIMULATION !== 'true'

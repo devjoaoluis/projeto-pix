@@ -10,10 +10,18 @@ import { createHmac } from 'crypto';
 // A URL pode ser trocada com a variável de ambiente API_URL (útil no CI).
 
 const BASE_URL = process.env.API_URL ?? 'http://localhost:3000';
+const API_PREFIX = '/api/v1';
 const WEBHOOK_SECRET =
   process.env.WEBHOOK_SECRET ?? 'dev-pix-webhook-secret-change-me';
 
 // ---------- Helpers HTTP ----------
+
+function resolveApiPath(path: string): string {
+  if (path === '/' || path === '/health' || path === '/metrics') {
+    return path;
+  }
+  return path.startsWith(API_PREFIX) ? path : `${API_PREFIX}${path}`;
+}
 
 async function http(
   method: string,
@@ -35,7 +43,7 @@ async function http(
     ...(serializedBody !== undefined ? { body: serializedBody } : {}),
   };
 
-  const res = await fetch(`${BASE_URL}${path}`, opts);
+  const res = await fetch(`${BASE_URL}${resolveApiPath(path)}`, opts);
   const text = await res.text();
   let data: any = null;
   try {
@@ -124,6 +132,26 @@ describe('Fraud Flow (integração via HTTP)', () => {
     expect(res.data?.user?.id).toBeDefined();
     senderToken = res.data.accessToken;
     senderUserId = res.data.user.id;
+
+    // ParseUUIDPipe + ExceptionFilter padronizado com requestId e timestamp
+    const badUuid = await http(
+      'GET',
+      '/bank-accounts/id-invalido',
+      undefined,
+      senderToken,
+    );
+    expect(badUuid.status).toBe(400);
+    expect(badUuid.data?.timestamp).toBeDefined();
+    expect(badUuid.data).toHaveProperty('requestId');
+
+    // forbidNonWhitelisted: rejeita campos desconhecidos
+    const extraField = await http(
+      'POST',
+      '/bank-accounts',
+      { userId: senderUserId, campoDesconhecido: 'invalido' },
+      senderToken,
+    );
+    expect(extraField.status).toBe(400);
   });
 
   it('2. cria conta bancária do remetente', async () => {

@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -19,13 +20,13 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Post('user/:userId')
-  async createUserReport(@Param('userId') userId: string) {
+  async createUserReport(@Param('userId', ParseUUIDPipe) userId: string) {
     return this.reportsService.createUserReport(userId);
   }
 
   @Post('user/:userId/period')
   async createPeriodReport(
-    @Param('userId') userId: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
     @Body() dto: ReportFilterDto,
   ) {
     return this.reportsService.createPeriodReport(
@@ -36,13 +37,13 @@ export class ReportsController {
   }
 
   @Get('user/:userId')
-  async getReportsByUser(@Param('userId') userId: string) {
+  async getReportsByUser(@Param('userId', ParseUUIDPipe) userId: string) {
     return this.reportsService.getReportsByUser(userId);
   }
 
   @Get(':reportId')
   async getReport(
-    @Param('reportId') reportId: string,
+    @Param('reportId', ParseUUIDPipe) reportId: string,
     @CurrentUser() user?: JwtUserPayload,
   ) {
     const report = await this.reportsService.getReport(reportId);

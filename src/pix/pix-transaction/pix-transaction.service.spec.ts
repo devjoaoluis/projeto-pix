@@ -39,7 +39,9 @@ describe('PixTransactionService (BDD Scenarios)', () => {
         const chain: any = {
           from: jest.fn(() => chain),
           where: jest.fn(() => chain),
-          orderBy: jest.fn(() => Promise.resolve(result)),
+          orderBy: jest.fn(() => chain),
+          limit: jest.fn(() => chain),
+          offset: jest.fn(() => Promise.resolve(result)),
           then: (onFulfilled: any, onRejected: any) =>
             Promise.resolve(result).then(onFulfilled, onRejected),
         };
