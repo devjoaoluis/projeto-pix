@@ -1,7 +1,11 @@
 import { Controller, Get, Res } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
+import { Public } from '../auth/decorators/auth.decorators';
 import { MetricsService } from './metrics.service';
 
+@Public()
+@SkipThrottle()
 @Controller('metrics')
 export class MetricsController {
   constructor(private readonly metricsService: MetricsService) {}

@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { createHmac } from 'crypto';
 
 // Este arquivo não importa AppModule de propósito.
 // Ele chama a API por HTTP (fetch), então roda no Jest CJS
@@ -10,21 +10,40 @@ import { Test, TestingModule } from '@nestjs/testing';
 // A URL pode ser trocada com a variável de ambiente API_URL (útil no CI).
 
 const BASE_URL = process.env.API_URL ?? 'http://localhost:3000';
+const API_PREFIX = '/api/v1';
+const WEBHOOK_SECRET =
+  process.env.WEBHOOK_SECRET ?? 'dev-pix-webhook-secret-change-me';
 
 // ---------- Helpers HTTP ----------
+
+function resolveApiPath(path: string): string {
+  if (path === '/' || path === '/health' || path === '/metrics') {
+    return path;
+  }
+  return path.startsWith(API_PREFIX) ? path : `${API_PREFIX}${path}`;
+}
 
 async function http(
   method: string,
   path: string,
   body?: unknown,
+  token?: string,
+  extraHeaders?: Record<string, string>,
 ): Promise<{ status: number; data: any }> {
+  const serializedBody = body !== undefined ? JSON.stringify(body) : undefined;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...extraHeaders,
+  };
+
   const opts: RequestInit = {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
+    ...(serializedBody !== undefined ? { body: serializedBody } : {}),
   };
-  if (body !== undefined) opts.body = JSON.stringify(body);
 
-  const res = await fetch(`${BASE_URL}${path}`, opts);
+  const res = await fetch(`${BASE_URL}${resolveApiPath(path)}`, opts);
   const text = await res.text();
   let data: any = null;
   try {
@@ -33,6 +52,15 @@ async function http(
     data = text;
   }
   return { status: res.status, data };
+}
+
+function signWebhookPayload(body: unknown): string {
+  return (
+    'sha256=' +
+    createHmac('sha256', WEBHOOK_SECRET)
+      .update(JSON.stringify(body))
+      .digest('hex')
+  );
 }
 
 // ---------- Gerador de CPF válido ----------
@@ -57,12 +85,12 @@ function gerarCpf(): string {
 describe('Fraud Flow (integração via HTTP)', () => {
   let uniq: number;
   let senderUserId: string;
+  let senderToken: string;
   let senderAccountId: string;
   let senderPixKey: string;
-  const receivers: { accountId: string; pixKey: string }[] = [];
+  const receivers: { accountId: string; pixKey: string; token: string }[] = [];
 
   beforeAll(async () => {
-    // Confirma que a API está no ar antes de qualquer coisa
     const health = await http('GET', '/');
     if (health.status !== 200) {
       throw new Error(
@@ -76,34 +104,63 @@ describe('Fraud Flow (integração via HTTP)', () => {
   });
 
   // ============================================================
-  // 0. Sanity check
+  // 0. Sanity check e segurança
   // ============================================================
-  it('0. API responde 200 na raiz', async () => {
+  it('0. API responde 200 na raiz e bloqueia acesso sem JWT (401)', async () => {
     const res = await http('GET', '/');
     expect(res.status).toBe(200);
     expect(String(res.data)).toContain('API do Projeto Pix');
+
+    const unauth = await http('GET', '/bank-accounts');
+    expect(unauth.status).toBe(401);
   });
 
   // ============================================================
-  // 1-4. Setup do sender
+  // 1-4. Setup do sender autenticado
   // ============================================================
-  it('1. cria usuário remetente', async () => {
-    const res = await http('POST', '/users', {
+  it('1. registra e autentica usuário remetente via /auth/register', async () => {
+    const res = await http('POST', '/auth/register', {
       name: 'Sender Fraud Test',
       cpf: gerarCpf(),
       email: `sender-${uniq}@test.com`,
       phone: `+5511${String(uniq).slice(-9)}`,
+      password: 'FraudTest@123',
     });
 
     expect(res.status).toBe(201);
-    expect(res.data?.id).toBeDefined();
-    senderUserId = res.data.id;
+    expect(res.data?.accessToken).toBeDefined();
+    expect(res.data?.user?.id).toBeDefined();
+    senderToken = res.data.accessToken;
+    senderUserId = res.data.user.id;
+
+    // ParseUUIDPipe + ExceptionFilter padronizado com requestId e timestamp
+    const badUuid = await http(
+      'GET',
+      '/bank-accounts/id-invalido',
+      undefined,
+      senderToken,
+    );
+    expect(badUuid.status).toBe(400);
+    expect(badUuid.data?.timestamp).toBeDefined();
+    expect(badUuid.data).toHaveProperty('requestId');
+
+    // forbidNonWhitelisted: rejeita campos desconhecidos
+    const extraField = await http(
+      'POST',
+      '/bank-accounts',
+      { userId: senderUserId, campoDesconhecido: 'invalido' },
+      senderToken,
+    );
+    expect(extraField.status).toBe(400);
   });
 
   it('2. cria conta bancária do remetente', async () => {
-    const res = await http('POST', '/bank-accounts', {
-      userId: senderUserId,
-    });
+    const res = await http(
+      'POST',
+      '/bank-accounts',
+      { userId: senderUserId },
+      senderToken,
+    );
 
     expect(res.status).toBe(201);
     expect(res.data?.id).toBeDefined();
@@ -113,27 +170,43 @@ describe('Fraud Flow (integração via HTTP)', () => {
   it('3. cria chave PIX do remetente', async () => {
     senderPixKey = `sender-${uniq}@test.com`;
 
-    const res = await http('POST', `/pix/keys/account/${senderAccountId}`, {
-      key: senderPixKey,
-    });
+    const res = await http(
+      'POST',
+      `/pix/keys/account/${senderAccountId}`,
+      { key: senderPixKey },
+      senderToken,
+    );
 
     expect(res.status).toBe(201);
     expect(res.data?.key).toBe(senderPixKey);
   });
 
-  it('4. credita R$ 20.000 via webhook', async () => {
-    const res = await http('POST', '/pix/transactions/webhook', {
+  it('4. credita R$ 20.000 via webhook assinado com HMAC', async () => {
+    const payload = {
       pixKey: senderPixKey,
       amount: 20000,
       externalTransactionId: `seed-${uniq}`,
       description: 'Crédito inicial de teste',
-    });
+    };
+
+    const unsigned = await http('POST', '/pix/transactions/webhook', payload);
+    expect(unsigned.status).toBe(401);
+
+    const res = await http(
+      'POST',
+      '/pix/transactions/webhook',
+      payload,
+      undefined,
+      { 'x-webhook-signature': signWebhookPayload(payload) },
+    );
 
     expect(res.status).toBe(201);
 
     const saldo = await http(
       'GET',
       `/bank-accounts/${senderAccountId}/balance`,
+      undefined,
+      senderToken,
     );
     expect(Number(saldo.data?.balance)).toBeGreaterThanOrEqual(20000);
   });
@@ -143,23 +216,33 @@ describe('Fraud Flow (integração via HTTP)', () => {
   // ============================================================
   it('5. cria 6 destinatários com contas e chaves', async () => {
     for (let i = 0; i < 6; i++) {
-      const u = await http('POST', '/users', {
+      const reg = await http('POST', '/auth/register', {
         name: `Receiver ${i} Fraud Test`,
         cpf: gerarCpf(),
         email: `receiver-${i}-${uniq}@test.com`,
         phone: `+5511${String(uniq + i + 1).slice(-9)}`,
+        password: 'FraudTest@123',
       });
-      expect(u.status).toBe(201);
+      expect(reg.status).toBe(201);
+      const token = reg.data.accessToken as string;
 
-      const a = await http('POST', '/bank-accounts', { userId: u.data.id });
+      const a = await http(
+        'POST',
+        '/bank-accounts',
+        { userId: reg.data.user.id },
+        token,
+      );
       expect(a.status).toBe(201);
 
-      const k = await http('POST', `/pix/keys/account/${a.data.id}`, {
-        key: `receiver-${i}-${uniq}@test.com`,
-      });
+      const k = await http(
+        'POST',
+        `/pix/keys/account/${a.data.id}`,
+        { key: `receiver-${i}-${uniq}@test.com` },
+        token,
+      );
       expect(k.status).toBe(201);
 
-      receivers.push({ accountId: a.data.id, pixKey: k.data.key });
+      receivers.push({ accountId: a.data.id, pixKey: k.data.key, token });
     }
 
     expect(receivers).toHaveLength(6);
@@ -177,6 +260,7 @@ describe('Fraud Flow (integração via HTTP)', () => {
         amount: 6000,
         description: 'Transferência alta — deve disparar HIGH_AMOUNT',
       },
+      senderToken,
     );
 
     expect(res.status).toBe(201);
@@ -193,6 +277,7 @@ describe('Fraud Flow (integração via HTTP)', () => {
         amount: 50,
         description: 'Chave nova — deve disparar NEW_PIX_KEY',
       },
+      senderToken,
     );
 
     expect(res.status).toBe(201);
@@ -212,9 +297,10 @@ describe('Fraud Flow (integração via HTTP)', () => {
           amount: 1000,
           description: `Transferência ${i}`,
         },
+        senderToken,
       );
 
-      if (res.status !== 201) break; // conta já bloqueada
+      if (res.status !== 201) break;
 
       ultimaAvaliacao = res.data?.fraudEvaluation;
     }
@@ -234,6 +320,7 @@ describe('Fraud Flow (integração via HTTP)', () => {
       'PATCH',
       `/bank-accounts/${senderAccountId}/block-fraud`,
       { reason: 'Teste manual de bloqueio por suspeita de fraude' },
+      senderToken,
     );
 
     if (res.status === 200) {
@@ -253,7 +340,12 @@ describe('Fraud Flow (integração via HTTP)', () => {
   // 10. Verificações pós-bloqueio
   // ============================================================
   it('10a. conta está BLOCKED / SUSPECTED_FRAUD', async () => {
-    const acc = await http('GET', `/bank-accounts/${senderAccountId}`);
+    const acc = await http(
+      'GET',
+      `/bank-accounts/${senderAccountId}`,
+      undefined,
+      senderToken,
+    );
     expect(acc.data.status).toBe('BLOCKED');
     expect(acc.data.blockedReason).toBe('SUSPECTED_FRAUD');
   });
@@ -266,6 +358,7 @@ describe('Fraud Flow (integração via HTTP)', () => {
         pixKey: receivers[0].pixKey,
         amount: 100,
       },
+      senderToken,
     );
     expect(res.status).toBe(400);
     expect(String(res.data?.message)).toMatch(/bloqueada|inativa/i);
@@ -275,6 +368,8 @@ describe('Fraud Flow (integração via HTTP)', () => {
     const res = await http(
       'PATCH',
       `/bank-accounts/${senderAccountId}/activate`,
+      undefined,
+      senderToken,
     );
     expect(res.status).toBe(400);
     expect(String(res.data?.message)).toMatch(/suspeita de fraude/i);
@@ -285,6 +380,7 @@ describe('Fraud Flow (integração via HTTP)', () => {
       'PATCH',
       `/bank-accounts/${senderAccountId}/block-fraud`,
       { reason: 'Duplicado' },
+      senderToken,
     );
     expect(res.status).toBe(409);
   });
@@ -293,24 +389,38 @@ describe('Fraud Flow (integração via HTTP)', () => {
   // 11. Bloqueio MANUAL e reativação
   // ============================================================
   it('11. bloqueio MANUAL grava motivo e permite reativação', async () => {
-    const u = await http('POST', '/users', {
+    const reg = await http('POST', '/auth/register', {
       name: 'Manual Block Test',
       cpf: gerarCpf(),
       email: `manual-${uniq}@test.com`,
       phone: `+5511${String(uniq + 100).slice(-9)}`,
+      password: 'FraudTest@123',
     });
-    expect(u.status).toBe(201);
+    expect(reg.status).toBe(201);
+    const manualToken = reg.data.accessToken as string;
 
-    const a = await http('POST', '/bank-accounts', { userId: u.data.id });
+    const a = await http(
+      'POST',
+      '/bank-accounts',
+      { userId: reg.data.user.id },
+      manualToken,
+    );
     expect(a.status).toBe(201);
 
-    const block = await http('PATCH', `/bank-accounts/${a.data.id}/block`);
+    const block = await http(
+      'PATCH',
+      `/bank-accounts/${a.data.id}/block`,
+      undefined,
+      manualToken,
+    );
     expect(block.status).toBe(200);
     expect(block.data.blockedReason).toBe('MANUAL');
 
     const activate = await http(
       'PATCH',
       `/bank-accounts/${a.data.id}/activate`,
+      undefined,
+      manualToken,
     );
     expect(activate.status).toBe(200);
     expect(activate.data.status).toBe('ACTIVE');
@@ -318,12 +428,22 @@ describe('Fraud Flow (integração via HTTP)', () => {
   });
 
   // ============================================================
-  // 12. Histórico de transações
+  // 12. Histórico de transações e isolamento de contas
   // ============================================================
-  it('12a. GET /pix/transactions/account/:id/history retorna histórico', async () => {
+  it('12a. GET /pix/transactions/account/:id/history retorna histórico e bloqueia terceiros (403)', async () => {
+    const forbidden = await http(
+      'GET',
+      `/pix/transactions/account/${senderAccountId}/history`,
+      undefined,
+      receivers[0].token,
+    );
+    expect(forbidden.status).toBe(403);
+
     const res = await http(
       'GET',
       `/pix/transactions/account/${senderAccountId}/history`,
+      undefined,
+      senderToken,
     );
 
     expect(res.status).toBe(200);
@@ -337,6 +457,8 @@ describe('Fraud Flow (integração via HTTP)', () => {
     const res = await http(
       'GET',
       `/pix/transactions/account/${senderAccountId}/history`,
+      undefined,
+      senderToken,
     );
 
     expect(res.status).toBe(200);
@@ -350,6 +472,8 @@ describe('Fraud Flow (integração via HTTP)', () => {
     const res = await http(
       'GET',
       `/pix/transactions/account/${receivers[0].accountId}/history`,
+      undefined,
+      receivers[0].token,
     );
 
     expect(res.status).toBe(200);

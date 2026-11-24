@@ -68,3 +68,17 @@ variable "docker_host" {
   type        = string
   default     = null
 }
+
+variable "jwt_secret" {
+  description = "Segredo para assinatura de tokens JWT"
+  type        = string
+  sensitive   = true
+  default     = "dev-pix-jwt-secret-change-me"
+}
+
+variable "webhook_secret" {
+  description = "Segredo para validação HMAC de webhooks Pix"
+  type        = string
+  sensitive   = true
+  default     = "dev-pix-webhook-secret-change-me"
+}

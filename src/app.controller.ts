@@ -1,8 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
+import { Public } from './auth/decorators/auth.decorators';
 import { AppService } from './app.service';
 
+@Public()
+@SkipThrottle()
 @Controller()
-export class AppController {          // ← o `export` é obrigatório aqui
+export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get()

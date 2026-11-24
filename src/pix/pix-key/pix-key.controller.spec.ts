@@ -45,231 +45,103 @@ describe('PixKeyController', () => {
     expect(controller).toBeDefined();
   });
 
-  describe('create', () => {
-    it('deve chamar service.create com os parâmetros corretos', async () => {
-      const dto: CreatePixKeyDto = { key: 'test@email.com' };
-      const expected = { id: 'key-1', ...dto };
-      mockPixKeyService.create.mockResolvedValue(expected);
+  it('deve criar chave Pix via POST account/:bankAccountId', async () => {
+    const dto: CreatePixKeyDto = { key: 'test@email.com' };
+    const expected = { id: 'key-1', ...dto };
+    mockPixKeyService.create.mockResolvedValue(expected);
 
-      const result = await controller.create('acc-1', dto);
-      expect(service.create).toHaveBeenCalledWith('acc-1', dto);
-      expect(result).toEqual(expected);
-    });
+    const result = await controller.create('acc-1', dto);
+    expect(service.create).toHaveBeenCalledWith('acc-1', dto);
+    expect(result).toEqual(expected);
   });
 
-  describe('findByAccount', () => {
-    it('deve chamar service.findByAccount', async () => {
-      const expected = [{ id: 'key-1' }];
-      mockPixKeyService.findByAccount.mockResolvedValue(expected);
+  it('deve listar chaves da conta via GET account/:bankAccountId', async () => {
+    const expected = [{ id: 'key-1' }];
+    mockPixKeyService.findByAccount.mockResolvedValue(expected);
 
-      const result = await controller.findByAccount('acc-1');
-      expect(service.findByAccount).toHaveBeenCalledWith('acc-1');
-      expect(result).toEqual(expected);
-    });
+    const result = await controller.findByAccount('acc-1');
+    expect(service.findByAccount).toHaveBeenCalledWith('acc-1');
+    expect(result).toEqual(expected);
   });
 
-  describe('generateRandomKey', () => {
-    it('deve chamar service.generateRandomKey', async () => {
-      const expected = { id: 'key-rnd', key: 'random-uuid' };
-      mockPixKeyService.generateRandomKey.mockResolvedValue(expected);
+  it('deve gerar chave aleatória via POST account/:bankAccountId/random', async () => {
+    const expected = { id: 'key-rnd', key: 'random-uuid' };
+    mockPixKeyService.generateRandomKey.mockResolvedValue(expected);
 
-      const result = await controller.generateRandomKey('acc-1');
-      expect(service.generateRandomKey).toHaveBeenCalledWith('acc-1');
-      expect(result).toEqual(expected);
-    });
+    const result = await controller.generateRandomKey('acc-1');
+    expect(service.generateRandomKey).toHaveBeenCalledWith('acc-1');
+    expect(result).toEqual(expected);
   });
 
-  describe('update (PATCH)', () => {
-    it('deve chamar service.update com bankAccountId, id e dto', async () => {
-      const dto: UpdatePixKeyDto = { key: 'novo@email.com' };
-      const expected = { id: 'key-1', key: 'novo@email.com' };
-      mockPixKeyService.update.mockResolvedValue(expected);
+  it('deve atualizar chave via PATCH account/:bankAccountId/:id', async () => {
+    const dto: UpdatePixKeyDto = { key: 'novo@email.com' };
+    const expected = { id: 'key-1', key: 'novo@email.com' };
+    mockPixKeyService.update.mockResolvedValue(expected);
 
-      const result = await controller.update('acc-1', 'key-1', dto);
-      expect(service.update).toHaveBeenCalledWith('acc-1', 'key-1', dto);
-      expect(result).toEqual(expected);
-    });
+    const result = await controller.update('acc-1', 'key-1', dto);
+    expect(service.update).toHaveBeenCalledWith('acc-1', 'key-1', dto);
+    expect(result).toEqual(expected);
   });
 
-  describe('updatePut (PUT)', () => {
-    it('deve chamar service.update com bankAccountId, id e dto', async () => {
-      const dto: UpdatePixKeyDto = { key: 'novo@email.com' };
-      const expected = { id: 'key-1', key: 'novo@email.com' };
-      mockPixKeyService.update.mockResolvedValue(expected);
+  it('deve regenerar chave aleatória via PATCH account/:bankAccountId/:id/random', async () => {
+    const expected = { id: 'key-1', key: 'new-rnd-uuid' };
+    mockPixKeyService.updateRandomKey.mockResolvedValue(expected);
 
-      const result = await controller.updatePut('acc-1', 'key-1', dto);
-      expect(service.update).toHaveBeenCalledWith('acc-1', 'key-1', dto);
-      expect(result).toEqual(expected);
-    });
+    const result = await controller.updateRandomKey('acc-1', 'key-1');
+    expect(service.updateRandomKey).toHaveBeenCalledWith('acc-1', 'key-1');
+    expect(result).toEqual(expected);
   });
 
-  describe('updateRandomKey', () => {
-    it('deve chamar service.updateRandomKey', async () => {
-      const expected = { id: 'key-1', key: 'new-rnd-uuid' };
-      mockPixKeyService.updateRandomKey.mockResolvedValue(expected);
-
-      const result = await controller.updateRandomKey('acc-1', 'key-1');
-      expect(service.updateRandomKey).toHaveBeenCalledWith('acc-1', 'key-1');
-      expect(result).toEqual(expected);
+  it('deve suspender e desbloquear chave vinculada à conta', async () => {
+    const dto: SuspendPixKeyDto = { reason: 'Suspeita' };
+    mockPixKeyService.suspend.mockResolvedValue({
+      id: 'key-1',
+      status: 'SUSPENDED',
     });
+    mockPixKeyService.unblock.mockResolvedValue({
+      id: 'key-1',
+      status: 'ACTIVE',
+    });
+
+    await controller.suspend('acc-1', 'key-1', dto);
+    expect(service.suspend).toHaveBeenCalledWith('acc-1', 'key-1', 'Suspeita');
+
+    await controller.unblock('acc-1', 'key-1');
+    expect(service.unblock).toHaveBeenCalledWith('acc-1', 'key-1');
   });
 
-  describe('updateById (PATCH :id)', () => {
-    it('deve chamar service.updateWithoutAccount', async () => {
-      const dto: UpdatePixKeyDto = { key: 'novo@email.com' };
-      const expected = { id: 'key-1', key: 'novo@email.com' };
-      mockPixKeyService.updateWithoutAccount.mockResolvedValue(expected);
-
-      const result = await controller.updateById('key-1', dto);
-      expect(service.updateWithoutAccount).toHaveBeenCalledWith('key-1', dto);
-      expect(result).toEqual(expected);
+  it('deve atualizar, suspender e desbloquear chave diretamente por :id', async () => {
+    mockPixKeyService.updateWithoutAccount.mockResolvedValue({ id: 'key-1' });
+    mockPixKeyService.suspendWithoutAccount.mockResolvedValue({
+      id: 'key-1',
+      status: 'SUSPENDED',
     });
+    mockPixKeyService.unblockWithoutAccount.mockResolvedValue({
+      id: 'key-1',
+      status: 'ACTIVE',
+    });
+
+    await controller.updateById('key-1', { key: 'a@b.com' });
+    expect(service.updateWithoutAccount).toHaveBeenCalledWith('key-1', {
+      key: 'a@b.com',
+    });
+
+    await controller.suspendById('key-1', { reason: 'Manual' });
+    expect(service.suspendWithoutAccount).toHaveBeenCalledWith(
+      'key-1',
+      'Manual',
+    );
+
+    await controller.unblockById('key-1');
+    expect(service.unblockWithoutAccount).toHaveBeenCalledWith('key-1');
   });
 
-  describe('updateByIdPut (PUT :id)', () => {
-    it('deve chamar service.updateWithoutAccount', async () => {
-      const dto: UpdatePixKeyDto = { bankAccountId: 'acc-2' };
-      const expected = { id: 'key-1', bankAccountId: 'acc-2' };
-      mockPixKeyService.updateWithoutAccount.mockResolvedValue(expected);
+  it('deve remover chave via DELETE account/:bankAccountId/:id', async () => {
+    const expected = { message: 'Chave Pix removida com sucesso' };
+    mockPixKeyService.remove.mockResolvedValue(expected);
 
-      const result = await controller.updateByIdPut('key-1', dto);
-      expect(service.updateWithoutAccount).toHaveBeenCalledWith('key-1', dto);
-      expect(result).toEqual(expected);
-    });
-  });
-
-  describe('unblock (Desbloquear Chave PIX Suspensa)', () => {
-    it('deve chamar service.unblock via PATCH /:bankAccountId/:id/unblock', async () => {
-      const expected = { id: 'key-1', status: 'ACTIVE' };
-      mockPixKeyService.unblock.mockResolvedValue(expected);
-
-      const result = await controller.unblock('acc-1', 'key-1');
-      expect(service.unblock).toHaveBeenCalledWith('acc-1', 'key-1');
-      expect(result).toEqual(expected);
-    });
-
-    it('deve chamar service.unblock via PUT /:bankAccountId/:id/unblock', async () => {
-      const expected = { id: 'key-1', status: 'ACTIVE' };
-      mockPixKeyService.unblock.mockResolvedValue(expected);
-
-      const result = await controller.unblockPut('acc-1', 'key-1');
-      expect(service.unblock).toHaveBeenCalledWith('acc-1', 'key-1');
-      expect(result).toEqual(expected);
-    });
-
-    it('deve chamar service.unblock via PATCH /:bankAccountId/:id/desbloquear', async () => {
-      const expected = { id: 'key-1', status: 'ACTIVE' };
-      mockPixKeyService.unblock.mockResolvedValue(expected);
-
-      const result = await controller.desbloquear('acc-1', 'key-1');
-      expect(service.unblock).toHaveBeenCalledWith('acc-1', 'key-1');
-      expect(result).toEqual(expected);
-    });
-
-    it('deve chamar service.unblock via PATCH /:bankAccountId/:id/activate', async () => {
-      const expected = { id: 'key-1', status: 'ACTIVE' };
-      mockPixKeyService.unblock.mockResolvedValue(expected);
-
-      const result = await controller.activate('acc-1', 'key-1');
-      expect(service.unblock).toHaveBeenCalledWith('acc-1', 'key-1');
-      expect(result).toEqual(expected);
-    });
-
-    it('deve chamar service.unblockWithoutAccount via PATCH /:id/unblock', async () => {
-      const expected = { id: 'key-1', status: 'ACTIVE' };
-      mockPixKeyService.unblockWithoutAccount.mockResolvedValue(expected);
-
-      const result = await controller.unblockById('key-1');
-      expect(service.unblockWithoutAccount).toHaveBeenCalledWith('key-1');
-      expect(result).toEqual(expected);
-    });
-
-    it('deve chamar service.unblockWithoutAccount via PUT /:id/unblock', async () => {
-      const expected = { id: 'key-1', status: 'ACTIVE' };
-      mockPixKeyService.unblockWithoutAccount.mockResolvedValue(expected);
-
-      const result = await controller.unblockByIdPut('key-1');
-      expect(service.unblockWithoutAccount).toHaveBeenCalledWith('key-1');
-      expect(result).toEqual(expected);
-    });
-
-    it('deve chamar service.unblockWithoutAccount via PATCH /:id/desbloquear', async () => {
-      const expected = { id: 'key-1', status: 'ACTIVE' };
-      mockPixKeyService.unblockWithoutAccount.mockResolvedValue(expected);
-
-      const result = await controller.desbloquearById('key-1');
-      expect(service.unblockWithoutAccount).toHaveBeenCalledWith('key-1');
-      expect(result).toEqual(expected);
-    });
-
-    it('deve chamar service.unblockWithoutAccount via PATCH /:id/activate', async () => {
-      const expected = { id: 'key-1', status: 'ACTIVE' };
-      mockPixKeyService.unblockWithoutAccount.mockResolvedValue(expected);
-
-      const result = await controller.activateById('key-1');
-      expect(service.unblockWithoutAccount).toHaveBeenCalledWith('key-1');
-      expect(result).toEqual(expected);
-    });
-  });
-
-  describe('suspend (Suspender Chave PIX)', () => {
-    it('deve chamar service.suspend via PATCH /:bankAccountId/:id/suspend', async () => {
-      const dto: SuspendPixKeyDto = { reason: 'Suspeita' };
-      const expected = { id: 'key-1', status: 'SUSPENDED' };
-      mockPixKeyService.suspend.mockResolvedValue(expected);
-
-      const result = await controller.suspend('acc-1', 'key-1', dto);
-      expect(service.suspend).toHaveBeenCalledWith(
-        'acc-1',
-        'key-1',
-        'Suspeita',
-      );
-      expect(result).toEqual(expected);
-    });
-
-    it('deve chamar service.suspend via PATCH /:bankAccountId/:id/block', async () => {
-      const expected = { id: 'key-1', status: 'SUSPENDED' };
-      mockPixKeyService.suspend.mockResolvedValue(expected);
-
-      const result = await controller.block('acc-1', 'key-1');
-      expect(service.suspend).toHaveBeenCalledWith('acc-1', 'key-1', undefined);
-      expect(result).toEqual(expected);
-    });
-
-    it('deve chamar service.suspendWithoutAccount via PATCH /:id/suspend', async () => {
-      const dto: SuspendPixKeyDto = { reason: 'Suspeita' };
-      const expected = { id: 'key-1', status: 'SUSPENDED' };
-      mockPixKeyService.suspendWithoutAccount.mockResolvedValue(expected);
-
-      const result = await controller.suspendById('key-1', dto);
-      expect(service.suspendWithoutAccount).toHaveBeenCalledWith(
-        'key-1',
-        'Suspeita',
-      );
-      expect(result).toEqual(expected);
-    });
-
-    it('deve chamar service.suspendWithoutAccount via PATCH /:id/block', async () => {
-      const expected = { id: 'key-1', status: 'SUSPENDED' };
-      mockPixKeyService.suspendWithoutAccount.mockResolvedValue(expected);
-
-      const result = await controller.blockById('key-1');
-      expect(service.suspendWithoutAccount).toHaveBeenCalledWith(
-        'key-1',
-        undefined,
-      );
-      expect(result).toEqual(expected);
-    });
-  });
-
-  describe('remove', () => {
-    it('deve chamar service.remove', async () => {
-      const expected = { message: 'Chave Pix removida com sucesso' };
-      mockPixKeyService.remove.mockResolvedValue(expected);
-
-      const result = await controller.remove('acc-1', 'key-1');
-      expect(service.remove).toHaveBeenCalledWith('acc-1', 'key-1');
-      expect(result).toEqual(expected);
-    });
+    const result = await controller.remove('acc-1', 'key-1');
+    expect(service.remove).toHaveBeenCalledWith('acc-1', 'key-1');
+    expect(result).toEqual(expected);
   });
 });
