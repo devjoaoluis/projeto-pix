@@ -59,6 +59,12 @@ services:
       PORT: 3000
       TZ: America/Sao_Paulo
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      JWT_SECRET: ${JWT_SECRET:-dev-pix-jwt-secret-change-me}
+      JWT_EXPIRES_IN_SECONDS: ${JWT_EXPIRES_IN_SECONDS:-3600}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-dev-pix-webhook-secret-change-me}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000,http://localhost:3001}
+      THROTTLE_TTL_MS: ${THROTTLE_TTL_MS:-60000}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-120}
     ports:
       - '${API_PORT:-3000}:3000'
 

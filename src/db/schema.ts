@@ -16,6 +16,8 @@ export const users = pgTable('users', {
   cpf: varchar('cpf', { length: 14 }).notNull().unique(),
   email: varchar('email', { length: 255 }).notNull(),
   phone: varchar('phone', { length: 20 }).notNull(),
+  passwordHash: varchar('password_hash', { length: 255 }),
+  role: varchar('role', { length: 20 }).default('USER').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -50,6 +52,27 @@ export const bankAccounts = pgTable(
     updatedAt: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => [uniqueIndex('bank_accounts_user_id_unique').on(table.userId)],
+);
+
+export const accountPermissions = pgTable(
+  'account_permissions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    bankAccountId: uuid('bank_account_id')
+      .notNull()
+      .references(() => bankAccounts.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: varchar('role', { length: 20 }).default('VIEWER').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('account_permissions_account_user_unique').on(
+      table.bankAccountId,
+      table.userId,
+    ),
+  ],
 );
 
 export const pixKeys = pgTable(

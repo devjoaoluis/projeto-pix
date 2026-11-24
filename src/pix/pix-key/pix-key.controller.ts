@@ -7,13 +7,17 @@ import {
   Patch,
   Post,
   Put,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { AccountAccessGuard } from '../../auth/guards/account-access.guard';
 import { PixKeyService } from './pix-key.service';
 import { CreatePixKeyDto } from './dto/create-pix-key.dto';
 import { UpdatePixKeyDto } from './dto/update-pix-key.dto';
 import { SuspendPixKeyDto } from './dto/suspend-pix-key.dto';
 
 @Controller(['pix/keys/account', 'pix/keys'])
+@UseGuards(JwtAuthGuard, AccountAccessGuard)
 export class PixKeyController {
   constructor(private readonly pixKeyService: PixKeyService) {}
 

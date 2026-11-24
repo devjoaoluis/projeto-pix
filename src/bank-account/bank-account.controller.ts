@@ -6,17 +6,23 @@ import {
   Patch,
   Post,
   Delete,
+  ParseUUIDPipe,
+  UseGuards,
 } from '@nestjs/common';
 
+import { Roles } from '../auth/decorators/auth.decorators';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AccountAccessGuard } from '../auth/guards/account-access.guard';
 import { BankAccountService } from './bank-account.service';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 import { BlockForFraudDto } from './dto/block-for-fraud.dto';
-
 import { UpdateBalanceDto } from './dto/update-balance.dto';
 import { UpdateDailyLimitDto } from './dto/update-daily-limit.dto';
+import { GrantAccountPermissionDto } from './dto/grant-account-permission.dto';
 
 @Controller('bank-accounts')
+@UseGuards(JwtAuthGuard, AccountAccessGuard)
 export class BankAccountController {
   constructor(private readonly bankAccountService: BankAccountService) {}
 
@@ -25,6 +31,7 @@ export class BankAccountController {
     return this.bankAccountService.create(dto);
   }
 
+  @Roles('ADMIN')
   @Get()
   findAll() {
     return this.bankAccountService.findAll();
@@ -43,6 +50,27 @@ export class BankAccountController {
   @Get(':id/balance')
   getBalance(@Param('id') id: string) {
     return this.bankAccountService.getBalance(id);
+  }
+
+  @Get(':id/permissions')
+  getPermissions(@Param('id', ParseUUIDPipe) id: string) {
+    return this.bankAccountService.getPermissions(id);
+  }
+
+  @Post(':id/permissions')
+  grantPermission(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: GrantAccountPermissionDto,
+  ) {
+    return this.bankAccountService.grantPermission(id, dto);
+  }
+
+  @Delete(':id/permissions/:memberUserId')
+  revokePermission(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('memberUserId', ParseUUIDPipe) memberUserId: string,
+  ) {
+    return this.bankAccountService.revokePermission(id, memberUserId);
   }
 
   @Patch(':id/block')
@@ -65,6 +93,7 @@ export class BankAccountController {
     return this.bankAccountService.update(id, dto);
   }
 
+  @Roles('ADMIN')
   @Patch(':id/balance')
   updateBalance(@Param('id') id: string, @Body() dto: UpdateBalanceDto) {
     return this.bankAccountService.updateBalance(id, dto.amount);

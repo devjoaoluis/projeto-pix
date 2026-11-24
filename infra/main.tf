@@ -122,6 +122,8 @@ resource "docker_container" "api" {
     "DB_URL=${local.db_url}",
     "PORT=3000",
     "TZ=${var.tz}",
+    "JWT_SECRET=${var.jwt_secret}",
+    "WEBHOOK_SECRET=${var.webhook_secret}",
   ]
 
   ports {
