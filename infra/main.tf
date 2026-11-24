@@ -97,7 +97,7 @@ resource "docker_container" "postgres" {
 resource "docker_container" "seed" {
   name       = "${local.name}-seed"
   image      = var.seed_image
-  command    = ["sh", "-c", "npm run db:push -- --force && npm run seed"]
+  command    = ["sh", "-c", "npm run db:migrate && npm run seed"]
   env        = ["DB_URL=${local.db_url}"]
   restart    = "no"
   must_run   = false # é esperado que ele termine

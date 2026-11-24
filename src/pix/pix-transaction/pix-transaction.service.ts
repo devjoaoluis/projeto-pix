@@ -273,7 +273,7 @@ export class PixTransactionService {
       return inserted;
     });
 
-    const senderNotification = this.notificationService.notify(
+    const senderNotification = await this.notificationService.notify(
       senderAccount.id,
       transaction.id,
       'TRANSFER',
@@ -281,7 +281,7 @@ export class PixTransactionService {
       dto.description,
     );
 
-    const receiverNotification = this.notificationService.notify(
+    const receiverNotification = await this.notificationService.notify(
       receiverAccount.id,
       transaction.id,
       'RECEIVE',
@@ -374,7 +374,7 @@ export class PixTransactionService {
     });
 
     if (transaction.senderAccountId) {
-      this.notificationService.notify(
+      await this.notificationService.notify(
         transaction.senderAccountId,
         transaction.id,
         'CANCELED',
@@ -384,7 +384,7 @@ export class PixTransactionService {
     }
 
     if (transaction.receiverAccountId) {
-      this.notificationService.notify(
+      await this.notificationService.notify(
         transaction.receiverAccountId,
         transaction.id,
         'CANCELED',
@@ -427,7 +427,7 @@ export class PixTransactionService {
       return inserted;
     });
 
-    const notification = this.notificationService.notify(
+    const notification = await this.notificationService.notify(
       pixKey.bankAccountId,
       transaction.id,
       'RECEIVE',
@@ -619,7 +619,13 @@ export class PixTransactionService {
           .returning();
 
         if (failed) {
-          this.notificationService.notify(senderAccountId, transaction.id, 'FAILED', amount, error.message);
+          await this.notificationService.notify(
+            senderAccountId,
+            transaction.id,
+            'FAILED',
+            amount,
+            error.message,
+          );
         }
       }
     }

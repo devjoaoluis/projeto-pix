@@ -4,6 +4,8 @@ import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
   accountPermissions,
   bankAccounts,
+  notificationPreferences,
+  notifications,
   pixKeys,
   pixTransactions,
   reports,
@@ -158,6 +160,14 @@ export class UsersRepository {
       await this.db
         .delete(accountPermissions)
         .where(inArray(accountPermissions.bankAccountId, accountIds));
+
+      await this.db
+        .delete(notifications)
+        .where(inArray(notifications.accountId, accountIds));
+
+      await this.db
+        .delete(notificationPreferences)
+        .where(inArray(notificationPreferences.accountId, accountIds));
 
       await this.db
         .delete(pixTransactions)
