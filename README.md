@@ -11,6 +11,7 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix, tran
 - **Class-Validator**, **Class-Transformer** e **brazilian-class-validator** – Validação e transformação de DTOs (incluindo CPF/CNPJ e chaves Pix).
 - **@nestjs/schedule** – Agendamento de tarefas (cron) para execução automática de Pix agendados.
 - **nestjs-pino** & **pino-http** – Logs estruturados em JSON com `requestId` e mascaramento automático de dados sensíveis (CPF, senhas e credenciais).
+- **Prometheus (`prom-client`)** & **Grafana** – Exposição de métricas em `/metrics`, coleta automática via Prometheus e dashboard provisionado no Grafana.
 - **Docker** & **Docker Compose** – Build multi-stage e orquestração completa (PostgreSQL + seed + API).
 - **Terraform** – Infraestrutura como código (provider `docker`, com suporte a múltiplos ambientes).
 - **Jest** & **Supertest** – Testes unitários e de integração.
@@ -67,6 +68,8 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix, tran
 ### 🩺 Observabilidade
 - ✅ Health check (`GET /health`) verificando disponibilidade da API e conectividade com o PostgreSQL (`SELECT 1`), retornando `200 OK` ou `503 Service Unavailable`
 - ✅ Logs estruturados em JSON via `nestjs-pino` com `requestId` propagado por requisição (cabeçalho `x-request-id`) e mascaramento automático de CPF, senhas, tokens e credenciais de banco
+- ✅ Métricas Prometheus (`GET /metrics` via `prom-client`) com métricas padrão do Node.js e métricas HTTP (`pix_api_http_requests_total`, `pix_api_http_request_duration_seconds`, `pix_api_http_requests_in_flight`)
+- ✅ Prometheus (`http://localhost:9090`) e Grafana (`http://localhost:3001`, datasource + dashboard provisionados automaticamente) integrados no Docker Compose
 
 ---
 
@@ -74,7 +77,7 @@ API RESTful para gerenciamento de usuários, contas bancárias, chaves Pix, tran
 
 | Módulo | Base Route | Operações principais |
 | :--- | :--- | :--- |
-| **Health** | `/`, `/health` | `GET /`, `GET /health` (API + PostgreSQL) |
+| **Observabilidade** | `/`, `/health`, `/metrics` | `GET /`, `GET /health` (API + PostgreSQL), `GET /metrics` (Prometheus) |
 | **Usuários** | `/users` | `POST`, `GET`, `GET /:id`, `PATCH/PUT /:id`, `DELETE /:id`, `POST /:id/login`, `POST/GET /:id/activities`, `GET /:id/login-history` |
 | **Contas** | `/bank-accounts` | `POST`, `GET`, `GET /:id`, `GET /user/:userId`, `GET/PATCH /:id/balance`, `PATCH /:id/daily-limit`, `PATCH /:id/block`, `PATCH /:id/block-fraud`, `PATCH /:id/activate`, `PATCH /:id`, `DELETE /:id` |
 | **Chaves Pix** | `/pix/keys` (ou `/pix/keys/account`) | `POST /:bankAccountId`, `POST /:bankAccountId/random`, `GET /:bankAccountId`, `PATCH/PUT /:bankAccountId/:id`, `PATCH /:bankAccountId/:id/suspend`, `PATCH /:bankAccountId/:id/unblock`, `DELETE /:bankAccountId/:id` |
@@ -108,7 +111,10 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Sobe o Postgres, cria as tabelas (`db:push`), insere os dados de exemplo (`seed`) e inicia a API em `http://localhost:3000`.
+Sobe o Postgres, cria as tabelas (`db:push`), insere os dados de exemplo (`seed`) e inicia:
+- **API:** `http://localhost:3000` (`GET /health` e `GET /metrics`)
+- **Prometheus:** `http://localhost:9090` (coletando `api:3000/metrics` a cada 15s)
+- **Grafana:** `http://localhost:3001` (credenciais padrão `admin` / `admin`, com datasource Prometheus e dashboard *Projeto Pix API - Observabilidade* provisionados automaticamente)
 
 > Se você já tinha o volume antigo `projeto-pix_banco_pix_data` (de uma versão anterior do compose), rode `docker compose down -v` uma vez para recriá-lo limpo. Isso apaga os dados locais.
 
@@ -189,10 +195,12 @@ A pipeline definida em [`.github/workflows/ci.yml`](./.github/workflows/ci.yml) 
 projeto-pix/
 ├── .github/workflows/ci.yml   # Pipeline CI/CD (GitHub Actions)
 ├── infra/                     # Infraestrutura como código (Terraform + envs)
+├── observability/             # Configurações do Prometheus e provisionamento do Grafana
 ├── src/
 │   ├── bank-account/          # Contas bancárias, saldo, limite diário e bloqueios
 │   ├── db/                    # Conexão Drizzle ORM, schema e seed
 │   ├── health/                # Health check (GET /health - API e PostgreSQL)
+│   ├── metrics/               # Métricas Prometheus (GET /metrics + middleware HTTP)
 │   ├── modules/usuarios/      # Usuários e histórico de logins/atividades
 │   ├── notification/          # Preferências (SMS/Email) e notificações
 │   ├── observability/         # Logger JSON (nestjs-pino), requestId e mascaramento

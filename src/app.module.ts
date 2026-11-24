@@ -11,6 +11,7 @@ import { BankAccountModule } from './bank-account/bank-account.module';
 import { NotificationModule } from './notification/notification.module';
 import { ReportsModule } from './pix/reports/reports.module';
 import { HealthModule } from './health/health.module';
+import { MetricsModule } from './metrics/metrics.module';
 import { createLoggerConfig } from './observability/logger.config';
 
 @Module({
@@ -25,6 +26,7 @@ import { createLoggerConfig } from './observability/logger.config';
     NotificationModule,
     ReportsModule,
     HealthModule,
+    MetricsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
