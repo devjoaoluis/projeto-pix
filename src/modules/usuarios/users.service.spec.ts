@@ -156,6 +156,26 @@ describe('UsersService.update and remove', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
+
+  describe('remove', () => {
+    it('deve lançar NotFoundException se usuário não existir', async () => {
+      repo.findById.mockResolvedValue(null);
+
+      await expect(service.remove('user-inexistente')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+
+    it('deve remover usuário e retornar mensagem de sucesso', async () => {
+      repo.findById.mockResolvedValue(existingUser);
+      repo.remove.mockResolvedValue(existingUser);
+
+      const result = await service.remove(existingUser.id);
+
+      expect(repo.remove).toHaveBeenCalledWith(existingUser.id);
+      expect(result).toEqual({ message: 'Usuário removido com sucesso.' });
+    });
+  });
 });
 
 describe('UpdateUserDto', () => {

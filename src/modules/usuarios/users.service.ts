@@ -14,7 +14,6 @@ export class UsersService {
   constructor(private readonly usersRepository: UsersRepository) {}
 
   async create(dto: CreateUserDto) {
-    // Passa o objeto simples com os atributos em inglês esperados pelo repositório
     try {
       return await this.usersRepository.create({
         name: dto.name,
@@ -23,7 +22,6 @@ export class UsersService {
         phone: dto.phone,
       });
     } catch (e: any) {
-      // drizzle embrulha o erro do pg em DrizzleQueryError (code em e.cause)
       if ((e?.cause?.code ?? e?.code) === '23505') {
         throw new BadRequestException(
           'Já existe um usuário cadastrado com este CPF.',
@@ -137,5 +135,11 @@ export class UsersService {
       }
       throw e;
     }
+  }
+
+  async remove(id: string) {
+    await this.findById(id);
+    await this.usersRepository.remove(id);
+    return { message: 'Usuário removido com sucesso.' };
   }
 }

@@ -13,6 +13,7 @@ describe('UsersController (Login and Activity History)', () => {
       getActivityHistory: jest.fn(),
       getLoginHistory: jest.fn(),
       update: jest.fn(),
+      remove: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -76,6 +77,16 @@ describe('UsersController (Login and Activity History)', () => {
     const result = await controller.replace('user-1', dto);
 
     expect(service.update).toHaveBeenCalledWith('user-1', dto);
+    expect(result).toEqual(expected);
+  });
+
+  it('deve remover usuário via DELETE :id', async () => {
+    const expected = { message: 'Usuário removido com sucesso.' };
+    (service.remove as jest.Mock).mockResolvedValue(expected);
+
+    const result = await controller.remove('user-1');
+
+    expect(service.remove).toHaveBeenCalledWith('user-1');
     expect(result).toEqual(expected);
   });
 });

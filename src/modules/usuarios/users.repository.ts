@@ -111,4 +111,56 @@ export class UsersRepository {
 
     return updatedUser;
   }
+
+  async remove(id: string) {
+    const userAccounts = await this.db
+      .select({ id: bankAccounts.id })
+      .from(bankAccounts)
+      .where(eq(bankAccounts.userId, id));
+
+    const accountIds = userAccounts.map((a) => a.id);
+
+    if (accountIds.length > 0) {
+      await this.db
+        .delete(pixTransactions)
+        .where(
+          or(
+            inArray(pixTransactions.bankAccountId, accountIds),
+            inArray(pixTransactions.senderAccountId, accountIds),
+            inArray(pixTransactions.receiverAccountId, accountIds),
+          ),
+        );
+
+      await this.db
+        .delete(userContacts)
+        .where(inArray(userContacts.contactBankAccountId, accountIds));
+
+      await this.db
+        .delete(pixKeys)
+        .where(inArray(pixKeys.bankAccountId, accountIds));
+
+      await this.db
+        .delete(bankAccounts)
+        .where(eq(bankAccounts.userId, id));
+    }
+
+    await this.db
+      .delete(userContacts)
+      .where(eq(userContacts.ownerUserId, id));
+
+    await this.db
+      .delete(userActivityLogs)
+      .where(eq(userActivityLogs.userId, id));
+
+    await this.db
+      .delete(reports)
+      .where(eq(reports.userId, id));
+
+    const [deletedUser] = await this.db
+      .delete(users)
+      .where(eq(users.id, id))
+      .returning();
+
+    return deletedUser;
+  }
 }

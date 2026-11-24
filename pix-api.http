@@ -62,6 +62,13 @@ Content-Type: application/json
   "phone": "11988887777"
 }
 
+# ------------------------------------------------------------
+# [TASK #44] Remover Usuário
+# ------------------------------------------------------------
+### Remover usuário (#44)
+
+DELETE {{baseUrl}}/users/{{userId}}
+
 ### Registrar login do usuário
 
 POST {{baseUrl}}/users/{{userId}}/login

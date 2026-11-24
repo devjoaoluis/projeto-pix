@@ -82,4 +82,9 @@ export class UsersController {
   ) {
     return await this.usersService.update(id, dto);
   }
+
+  @Delete(':id')
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
+    return await this.usersService.remove(id);
+  }
 }
